@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1410" />
+  <title>清酒釀造流水線｜互動式動畫</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231a1410'/%3E%3Ccircle cx='16' cy='18' r='9' fill='%23e0b25a'/%3E%3Crect x='14' y='6' width='4' height='6' rx='1' fill='%23e0b25a'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #1a1410;
+      --panel: rgba(18, 14, 12, 0.92);
+      --ink: #f4efe6;
+      --muted: #c4b8a8;
+      --gold: #e0b25a;
+      --line: rgba(224, 178, 90, 0.28);
+      --shadow: 0 18px 50px rgba(0,0,0,.45);
+      --ui: "Noto Sans TC", "PingFang TC", "Hiragino Sans CNS", "Microsoft JhengHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--ui); overflow: hidden; }
+    #canvas-wrap { position: fixed; inset: 0; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .ui { position: relative; z-index: 2; pointer-events: none; }
+    .ui > * { pointer-events: auto; }
+    header {
+      position: fixed; top: 0; left: 0; right: 0;
+      padding: calc(14px + env(safe-area-inset-top)) 18px 10px;
+      background: linear-gradient(to bottom, rgba(26,20,16,.92), rgba(26,20,16,0));
+    }
+    header h1 { margin: 0; font-size: clamp(18px, 3vw, 24px); font-weight: 700; letter-spacing: .04em; }
+    header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .hint { color: var(--gold); font-size: 12px; margin-top: 6px; }
+    .step-nav {
+      position: fixed; left: 0; right: 0;
+      bottom: calc(76px + env(safe-area-inset-bottom));
+      display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 6px;
+      scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+    }
+    .step-nav button {
+      flex: 0 0 auto; border: 1px solid var(--line); background: rgba(26,20,16,.78);
+      color: var(--ink); border-radius: 999px; padding: 8px 12px; font: inherit; font-size: 12px;
+      cursor: pointer; white-space: nowrap;
+    }
+    .step-nav button[aria-current="true"] { background: var(--gold); color: #1a1410; border-color: var(--gold); font-weight: 700; }
+    .dock {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      display: flex; gap: 8px; background: var(--panel);
+      border: 1px solid var(--line); border-radius: 999px; padding: 6px; box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .dock button {
+      min-width: 44px; min-height: 44px; border: 0; border-radius: 999px;
+      background: transparent; color: var(--ink); font: inherit; font-size: 14px;
+      cursor: pointer; padding: 0 16px; font-weight: 600;
+    }
+    .dock button.primary { background: var(--gold); color: #1a1410; }
+    aside.panel {
+      position: fixed; top: 0; right: 0; width: min(420px, 100%); height: 100%;
+      background: var(--panel); border-left: 1px solid var(--line);
+      transform: translateX(110%); transition: transform .45s cubic-bezier(.2,.8,.2,1);
+      overflow: auto; padding: calc(18px + env(safe-area-inset-top)) 20px 120px;
+      box-shadow: var(--shadow); backdrop-filter: blur(16px);
+    }
+    aside.panel.open { transform: translateX(0); }
+    .panel-close {
+      position: sticky; top: 0; float: right; width: 40px; height: 40px;
+      border: 1px solid var(--line); background: rgba(255,255,255,.06);
+      color: var(--ink); border-radius: 50%; cursor: pointer; font-size: 20px;
+    }
+    .kicker { color: var(--gold); font-size: 12px; letter-spacing: .16em; font-weight: 700; }
+    aside h2 { margin: 6px 0 4px; font-size: 26px; line-height: 1.25; }
+    .romaji { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+    .block { margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+    .block h3 { margin: 0 0 8px; font-size: 13px; color: var(--gold); letter-spacing: .08em; }
+    .block p, .block li { margin: 0; font-size: 14px; line-height: 1.7; color: var(--ink); }
+    .block ul { margin: 0; padding-left: 1.1em; }
+    .block li + li { margin-top: 6px; }
+    .exam { border-color: rgba(224,178,90,.55); background: rgba(224,178,90,.08); }
+    .labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    .label {
+      position: absolute; left: 0; top: 0; transform: translate(-50%, -120%);
+      background: rgba(18,14,12,.78); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 999px; padding: 3px 9px; font-size: 11px; white-space: nowrap; opacity: 0;
+    }
+    .label.on { opacity: 1; }
+    .label.active { background: var(--gold); color: #1a1410; border-color: var(--gold); font-weight: 700; }
+    .loading { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #1a1410; color: var(--ink); }
+    .loading.hide { opacity: 0; pointer-events: none; transition: opacity .5s; }
+    @media (max-width: 720px) {
+      aside.panel {
+        top: auto; left: 0; width: 100%; height: auto; max-height: 58vh;
+        border-left: 0; border-top: 1px solid var(--line);
+        transform: translateY(110%); border-radius: 20px 20px 0 0;
+        padding: 16px 16px calc(110px + env(safe-area-inset-bottom));
+      }
+      aside.panel.open { transform: translateY(0); }
+      header p { display: none; }
+      .step-nav { bottom: calc(70px + env(safe-area-inset-bottom)); }
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="canvas-wrap"></div>
+  <div class="labels" id="labels"></div>
+  <div class="ui">
+    <header>
+      <div>
+        <h1>清酒釀造流水線</h1>
+        <p>從精米（seimai）到瓶詰（binzume）的互動式動畫。點擊機台查看說明；內容與酒研考試重點一致。</p>
+        <div class="hint">拖曳可旋轉視角　點機台看細節　可自動導覽</div>
+      </div>
+    </header>
+    <nav class="step-nav" id="stepNav" aria-label="釀造步驟"></nav>
+    <div class="dock">
+      <button type="button" id="btnPrev">上一步</button>
+      <button type="button" id="btnTour" class="primary" aria-pressed="false">自動導覽</button>
+      <button type="button" id="btnNext">下一步</button>
+    </div>
+    <aside class="panel" id="panel" aria-hidden="true">
+      <button type="button" class="panel-close" id="btnClose" aria-label="關閉">×</button>
+      <div id="panelBody"></div>
+    </aside>
+  </div>
+  <div class="loading" id="loading"><div>正在準備釀造場…</div></div>
+  <script type="module">
+
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const STATIONS = [
+  {
+    id: "seimai", name: "精米", romaji: "seimai（せいまい）", short: "精米",
+    purpose: "刨去玄米（genmai）表層的糠、蛋白質與脂肪，得到設定精米步合的白米，讓酒香味較細緻、也利於後續製麴。",
+    method: "以精米機研磨玄米。米的表層含較多蛋白質、脂肪與灰分，過多易使酒香味粗糙，所以酒米要多磨。高度精米有助形成吟釀香／吟香（ginka）。特定名稱酒須使用三等以上玄米精白後的白米。",
+    numbers: [
+      "精米步合／精米歩合（seimai-buai）＝白米重量 ÷ 玄米重量。數字愈低，磨米程度愈高。",
+      "家庭食米精米步合約 92%（僅削約 8%）。",
+      "純米大吟釀（junmai daiginjō）、大吟釀（daiginjō）：50% 以下。",
+      "純米吟釀、吟釀（ginjō）：60% 以下。本釀造（honjōzō）：70% 以下。",
+      "2004 年（平成 16 年）起，純米酒（junmai-shu）已取消「70% 以下」上限，但仍須標示精米步合。"
+    ],
+    exam: "填充題必背：計算式、以及 50%／60%／70% 各對應哪些特定名稱。不要再把純米酒背成「一定 70% 以下」。",
+    namazake: ""
+  },
+  {
+    id: "senmai", name: "洗米・浸漬", romaji: "senmai（せんまい）、shinseki（しんせき）", short: "洗米浸漬",
+    purpose: "洗去米糠，再浸水使米吸收適量水分，影響之後蒸煮與糖化。",
+    method: "先洗米（senmai）去除附著的糠，再浸漬（shinseki）讓米芯吸水均勻。吸水過多或不足，都會影響蒸米的糊化與製麴的難易。",
+    numbers: ["這一步沒有單一法定溫度或時間數字；重點是「適量吸水」，並記住它在流程主軸中的位置。"],
+    exam: "必背釀造主軸：精米 → 洗米浸漬 → 蒸米 → 製麴 → 酒母 → 醪（三段仕込み）→ 上槽 → 濾過 → 火入れ → 貯藏 → 割水。浸漬讀音教材多作 shinseki（しんせき）。",
+    namazake: ""
+  },
+  {
+    id: "mushimai", name: "蒸米", romaji: "mushimai（むしまい）", short: "蒸米",
+    purpose: "用蒸氣把米蒸熟，使澱粉糊化，供製麴、酒母與醪使用。",
+    method: "日本酒用蒸氣蒸熟，而不是加水煮沸，才能得到外硬內軟、適合長麴菌的米。蒸好的米會分別送去製麴、酒母與醪。標準讀音是 mushimai（むしまい），不是 jomai。",
+    numbers: ["中央會指出，從精米到成酒大約六十日；蒸米是進入微生物作業前的關鍵一步。"],
+    exam: "填充題若問流程，不要漏掉「蒸米」。用途要寫得出：供製麴（seikiku）、酒母（shubo）與醪（moromi）。",
+    namazake: ""
+  },
+  {
+    id: "seikiku", name: "製麴", romaji: "seikiku（せいきく）", short: "製麴",
+    purpose: "在蒸米上培養黃麴菌（kikōjikin, Aspergillus oryzae），製成米麴（kōji）。麴菌酵素把澱粉糖化為葡萄糖，供酵母發酵。",
+    method: "把黃麴菌接到蒸米上，在麴室控制溫度與濕度，讓菌絲生長。日本酒界有「一麴二酛三造り」（ichi kōji, ni moto, san tsukuri）之說：麴的品質被視為第一要件。",
+    numbers: ["所有特定名稱酒（tokutei meishō-shu）的麴米（kōji-mai）使用比例須達白米重量的 15% 以上（平成 16 年修正時新設）。"],
+    exam: "15% 是填充題高頻數字。也要能寫出黃麴菌與「一麴二酛三造り」。",
+    namazake: ""
+  },
+  {
+    id: "shubo", name: "酒母／酛", romaji: "shubo（しゅぼ）／moto（酛, もと）", short: "酒母",
+    purpose: "用蒸米、麴（kōji）、水與酵母（kōbo）培養出大量健全酵母，是醪（moromi）發酵的母體。",
+    method: "速釀酛（sokujo-moto）直接添加乳酸來抑制雜菌。生酛（kimoto）、山廢（yamahai）則靠天然乳酸菌造酸：生酛要做山卸し（yama-oroshi，搗碎米塊），山廢省略此步驟。生酛系酒質多較醇厚，常被歸為醇酒（junshu）。",
+    numbers: ["酒母本身沒有像精米步合那樣的法定百分比；考試重點是三種酛的做法差異，以及它是醪的母體。"],
+    exam: "能用一句話分清速釀酛、生酛、山廢。用字注意是「酛」不是「酌」。",
+    namazake: ""
+  },
+  {
+    id: "moromi", name: "醪・三段仕込み", romaji: "moromi（もろみ）、sandan-jikomi（さんだんじこみ）", short: "醪",
+    purpose: "把麴、蒸米、水分三次加入酒母，在醪中同時完成糖化與酒精發酵，造出酒體。",
+    method: "四個階段：初添（hatsuzoe，第 1 日）→ 踊り（odori，第 2 日休息，讓酵母增殖）→ 仲添（nakazoe，第 3 日）→ 留添（tomezoe，第 4 日）。目的是抑制雜菌、促進酵母增殖，並便於溫度管理。這就是並行複發酵（heikō fukuhakkō）：與葡萄酒（果汁已含糖）、啤酒（先糖化再發酵，單行）都不同。",
+    numbers: ["三段仕込み約在四日內完成添料；其後並行發酵約二十日。從精米到成酒大約六十日。"],
+    exam: "填充題核心：默寫「初添、踊り、仲添、留添」，以及「並行複發酵＝糖化與酒精發酵在醪中同時進行」。",
+    namazake: ""
+  },
+  {
+    id: "joso", name: "上槽", romaji: "jōsō（じょうそう）", short: "上槽",
+    purpose: "壓槽，把酒液與酒粕（sake kasu）分開。",
+    method: "用槽或自動壓榨機把醪壓出清酒。用目較粗的布濾過醪、呈白濁者稱にごり酒（nigorizake）。未火入れ者有時稱活性酒（kassei-shu）。",
+    numbers: ["上槽是固液分離，沒有像精米步合那樣的法定百分比；重點是分出酒與酒粕。"],
+    exam: "流程主軸裡必須有「上槽」。にごり酒要能說出「用較粗的布濾過醪，呈白濁」。",
+    namazake: ""
+  },
+  {
+    id: "roka", name: "濾過", romaji: "roka（ろか）；酒稅法上的濾過是こす（kosu）", short: "濾過",
+    purpose: "再過濾，使酒液澄清。清酒（seishu）的法定定義也要求發酵後須濾過。",
+    method: "一般會做澄清過濾。無濾過（muroka）是業界慣用語，指清濾或炭濾較少、香味元素較多，不是國稅廳定義用語。常與生酒、原酒並列標示。",
+    numbers: ["清酒屬釀造酒（jōzō-shu），酒精分須未滿 22 度，且發酵後要濾過（こす, kosu）。"],
+    exam: "「未滿 22 度」與「要濾過」都是定義題。無濾過（muroka）要記得：非正式法規用語。",
+    namazake: ""
+  },
+  {
+    id: "hiire", name: "火入れ", romaji: "hiire（ひいれ；亦寫 hi-ire）", short: "火入れ",
+    purpose: "加熱殺菌、使酵素失活，穩定品質與香氣，並利於貯藏。",
+    method: "普通酒（futsū-shu）常在貯藏前與出貨（裝瓶）前各火入れ一次，共兩次。決定生酒系的口訣：看火入れ做了幾次、在哪一步做。",
+    numbers: ["普通火入れ酒：貯藏前一次、出貨前一次。生酒相關定義見下方。"],
+    exam: "生酒三兄弟是填充題必背。生酒（namazake）：製成後一次都不火入れ。生貯藏酒（namachozō-shu）：貯藏前不、出貨時才。生詰酒（namazume-shu）：貯藏前有、裝瓶時無。國稅廳表示基準有規範生酒與生貯藏酒；生詰酒是業界慣用語。",
+    namazake: "這一站就是「貯藏前」的那一次火入れ。若省略它、只在出貨時才加熱，就是生貯藏酒。若這裡與出貨時都不加熱，就是生酒，必須冷藏。"
+  },
+  {
+    id: "chozo", name: "貯藏", romaji: "chozō（貯蔵／ちょぞう）", short: "貯藏",
+    purpose: "讓酒在貯槽中熟成、安定香味，再進入割水與出貨。",
+    method: "貯藏於陰涼、溫度穩定處。陽光與高溫易致日曬味／日光臭（nikkō-shū）。古酒（koshu）／長期熟成酒（chōki jukusei-shu）經長期貯藏；SSI 將典型熟酒（jukushu）說成 3 年以上（尤其 10 年以上）熟成者。貯藏年數若標示，以滿 1 年的年數為準（未滿 1 年捨去）。",
+    numbers: ["熟酒理想飲用溫度 15–25℃，與貯藏時間、色澤加深有關，但那是飲用與分類，不是這一步的法定工時。"],
+    exam: "生貯藏酒的關鍵就是「貯藏前不火入れ」。用字若與講義不同（貯藏／貯蔵），以酒研講義為準。",
+    namazake: "生貯藏酒：在此階段保持未加熱，出貨（裝瓶）時才火入れ，仍保有一些生酒的鮮度。生酒則連貯藏期間也不加熱，須全程冷藏。"
+  },
+  {
+    id: "warimizu", name: "割水", romaji: "warimizu（わりみず）", short: "割水",
+    purpose: "貯藏後以水調整酒精分與香味，使口感平衡、符合出貨規格。",
+    method: "把釀造用水加入貯藏後的酒。市售酒多約 15%–16%。原酒（genshu）是製成後不以加水調整酒精分等的酒，酒精分通常較高（中央會常提約 18–20 度）；但為調整批次差異，酒精分 1% 未滿的加水仍可標示原酒。產地名標示須全部在該產地釀造（含割水）才可標。",
+    numbers: ["市售酒多約 15%–16%。原酒可有 1% 未滿的加水例外。法定清酒（seishu）酒精分未滿 22 度。"],
+    exam: "必背：割水與原酒的關係、以及「1% 未滿仍可稱原酒」。地理標示「日本酒」（Nihonshu）則更嚴：須日本國內產米，並在日本國內釀造。",
+    namazake: ""
+  },
+  {
+    id: "binzume", name: "瓶詰・二次火入れ", romaji: "binzume（びんづめ）；第二次 hiire", short: "瓶詰",
+    purpose: "裝瓶出貨。許多普通酒會在出貨／裝瓶前再做一次火入れ，穩定流通品質。",
+    method: "裝瓶後出貨。第二次火入れ對應「出貨前」那一次加熱。侍酒與保存：生酒必須冷藏，開瓶後盡快喝完；已火入れ的普通瓶裝酒，開瓶前也宜避光、避熱。",
+    numbers: ["普通酒常見兩次火入れ：貯藏前＋出貨前。市售酒精分多約 15%–16%。"],
+    exam: "用「出貨／裝瓶時有沒有火入れ」來分三兄弟：生貯藏＝這時才加熱；生詰＝貯藏前加熱、這時不加熱；生酒＝這裡也不加熱。",
+    namazake: "生貯藏酒：出貨（裝瓶）時才火入れ。生詰酒：裝瓶時不火入れ。生酒：連這一次都沒有。標示生酒者，酒標須註明保存或飲用注意。"
+  }
+];
+
+const PITCH = 8.2;
+const ORIGIN = -((STATIONS.length - 1) * PITCH) / 2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1410);
+scene.fog = new THREE.Fog(0x1a1410, 28, 72);
+
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 9.5, 16);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById("canvas-wrap").appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 5;
+controls.maxDistance = 42;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 1.6, 0);
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+
+const hemi = new THREE.HemisphereLight(0xfff1d6, 0x2a1c12, 0.75);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffe6b8, 1.15);
+key.position.set(8, 18, 10);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -50;
+key.shadow.camera.right = 50;
+key.shadow.camera.top = 20;
+key.shadow.camera.bottom = -20;
+scene.add(key);
+scene.add(new THREE.AmbientLight(0x3a2a1c, 0.35));
+
+const mat = {
+  wood: new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.85 }),
+  darkWood: new THREE.MeshStandardMaterial({ color: 0x3a2416, roughness: 0.9 }),
+  belt: new THREE.MeshStandardMaterial({ color: 0x2c241c, roughness: 0.7, metalness: 0.15 }),
+  slat: new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 0.8 }),
+  metal: new THREE.MeshStandardMaterial({ color: 0x8a9298, metalness: 0.7, roughness: 0.35 }),
+  copper: new THREE.MeshStandardMaterial({ color: 0x8a4a22, metalness: 0.55, roughness: 0.4 }),
+  tank: new THREE.MeshStandardMaterial({ color: 0xc9cfd4, metalness: 0.55, roughness: 0.28 }),
+  wash: new THREE.MeshStandardMaterial({ color: 0x6aa0b8, metalness: 0.2, roughness: 0.3, transparent: true, opacity: 0.55 }),
+  moromi: new THREE.MeshStandardMaterial({ color: 0xd8c27a, metalness: 0.05, roughness: 0.35, transparent: true, opacity: 0.72 }),
+  rice: new THREE.MeshStandardMaterial({ color: 0xf3ead4, roughness: 0.7 }),
+  sack: new THREE.MeshStandardMaterial({ color: 0xcbb58a, roughness: 0.9 }),
+  gold: new THREE.MeshStandardMaterial({ color: 0xe0b25a, emissive: 0x5a3a10, emissiveIntensity: 0.35, metalness: 0.4, roughness: 0.4 }),
+  floor: new THREE.MeshStandardMaterial({ color: 0x2a1c14, roughness: 0.95 }),
+  steam: new THREE.MeshStandardMaterial({ color: 0xf5f0e6, transparent: true, opacity: 0.18, depthWrite: false }),
+  bottle: new THREE.MeshStandardMaterial({ color: 0x6aa06a, metalness: 0.2, roughness: 0.25, transparent: true, opacity: 0.72 }),
+  koji: new THREE.MeshStandardMaterial({ color: 0xe8d9a8, roughness: 0.85 }),
+  press: new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.7 }),
+  filter: new THREE.MeshStandardMaterial({ color: 0xb8c4c8, metalness: 0.4, roughness: 0.4 }),
+  heat: new THREE.MeshStandardMaterial({ color: 0xb85a3a, metalness: 0.5, roughness: 0.4 })
+};
+
+function box(w, h, d, material, x=0, y=0, z=0) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+function cyl(rTop, rBot, h, material, x=0, y=0, z=0, segs=24) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, segs), material);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+function sphere(r, material, x=0, y=0, z=0) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), material);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  return m;
+}
+
+const floor = box(STATIONS.length * PITCH + 16, 0.4, 18, mat.floor, 0, -0.2, 0);
+scene.add(floor);
+for (let i = 0; i < 8; i++) {
+  const beam = box(0.35, 5.2, 0.35, mat.darkWood, ORIGIN - 6 + i * ((STATIONS.length * PITCH + 12) / 7), 2.6, -6.2);
+  scene.add(beam);
+}
+const backWall = box(STATIONS.length * PITCH + 16, 6, 0.3, mat.darkWood, 0, 3, -7);
+backWall.material = mat.darkWood.clone();
+backWall.material.color = new THREE.Color(0x241810);
+scene.add(backWall);
+
+const conveyor = new THREE.Group();
+const beltLen = STATIONS.length * PITCH + 6;
+conveyor.add(box(beltLen, 0.18, 2.2, mat.belt, 0, 0.7, 2.2));
+conveyor.add(box(beltLen, 0.55, 0.16, mat.metal, 0, 0.55, 1.15));
+conveyor.add(box(beltLen, 0.55, 0.16, mat.metal, 0, 0.55, 3.25));
+const slats = [];
+for (let i = 0; i < 28; i++) {
+  const slat = box(0.85, 0.06, 2.05, mat.slat, 0, 0.82, 2.2);
+  slat.userData.offset = i / 28;
+  slats.push(slat);
+  conveyor.add(slat);
+}
+scene.add(conveyor);
+
+const riceGeo = new THREE.SphereGeometry(0.055, 6, 5);
+riceGeo.scale(1, 0.7, 0.85);
+const riceMesh = new THREE.InstancedMesh(riceGeo, mat.rice, 220);
+riceMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(riceMesh);
+const riceDummy = new THREE.Object3D();
+const riceData = Array.from({ length: 220 }, (_, i) => ({
+  t: i / 220,
+  z: (Math.random() - 0.5) * 1.5,
+  y: 0.95 + Math.random() * 0.06,
+  spin: Math.random() * Math.PI
+}));
+
+const clickables = [];
+const stationGroups = [];
+const labelsEl = document.getElementById("labels");
+const labelNodes = [];
+const steamPuffs = [];
+const bubbles = [];
+const bobbers = [];
+
+function addLabel(group, text) {
+  const el = document.createElement("div");
+  el.className = "label";
+  el.textContent = text;
+  labelsEl.appendChild(el);
+  labelNodes.push({ el, group });
+}
+
+function highlightRing() {
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(2.05, 0.05, 8, 48),
+    new THREE.MeshBasicMaterial({ color: 0xe0b25a, transparent: true, opacity: 0 })
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.12;
+  ring.name = "ring";
+  return ring;
+}
+
+function lamp(x, z) {
+  const l = new THREE.PointLight(0xffc878, 1.4, 9, 2);
+  l.position.set(x, 4.6, z);
+  scene.add(l);
+}
+
+function makeSacks(g) {
+  for (let i = 0; i < 5; i++) {
+    const s = box(0.55, 0.72, 0.4, mat.sack, -0.9 + (i % 3) * 0.58, 0.56, -0.3 + Math.floor(i / 3) * 0.5);
+    s.rotation.y = (i - 2) * 0.12;
+    g.add(s);
+  }
+}
+
+function buildSeimai(g) {
+  makeSacks(g);
+  const body = cyl(0.85, 0.95, 1.7, mat.metal, 0.55, 1.15, -0.15);
+  g.add(body);
+  g.add(cyl(0.45, 0.45, 0.5, mat.copper, 0.55, 2.2, -0.15));
+  g.add(box(0.3, 0.15, 1.2, mat.metal, 0.55, 0.55, 0.7));
+  const hopper = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.7, 16), mat.metal);
+  hopper.position.set(0.55, 2.7, -0.15);
+  hopper.castShadow = true;
+  g.add(hopper);
+  const disc = cyl(0.7, 0.7, 0.12, mat.gold, 0.55, 1.2, -0.15);
+  disc.userData.spin = true;
+  bobbers.push(disc);
+  g.add(disc);
+}
+
+function buildWash(g) {
+  g.add(cyl(1.05, 1.05, 1.15, mat.tank, 0, 1.0, -0.2));
+  const water = cyl(0.92, 0.92, 0.35, mat.wash, 0, 1.15, -0.2);
+  g.add(water);
+  for (let i = 0; i < 14; i++) {
+    const b = sphere(0.05, new THREE.MeshStandardMaterial({ color: 0xd8eef8, transparent: true, opacity: 0.7 }), 0, 1, 0);
+    b.userData.phase = Math.random() * Math.PI * 2;
+    b.userData.r = 0.15 + Math.random() * 0.65;
+    b.userData.baseY = 0.85;
+    b.userData.amp = 0.35;
+    bubbles.push(b);
+    g.add(b);
+  }
+  g.add(box(1.4, 0.12, 0.4, mat.metal, 0, 1.7, 0.6));
+}
+
+function buildSteamer(g) {
+  g.add(cyl(1.0, 1.05, 1.6, mat.copper, 0, 1.2, -0.2, 28));
+  g.add(cyl(0.35, 0.35, 0.8, mat.metal, 0, 2.2, -0.2));
+  g.add(box(1.8, 0.2, 1.8, mat.darkWood, 0, 0.3, -0.2));
+  for (let i = 0; i < 10; i++) {
+    const puff = sphere(0.18 + Math.random() * 0.1, mat.steam.clone(), (Math.random() - 0.5) * 0.5, 2.4, -0.2);
+    puff.userData.phase = Math.random() * Math.PI * 2;
+    steamPuffs.push(puff);
+    g.add(puff);
+  }
+}
+
+function buildKoji(g) {
+  const room = box(3.0, 2.0, 2.4, new THREE.MeshStandardMaterial({ color: 0x6a5040, roughness: 0.9, transparent: true, opacity: 0.55 }), 0, 1.2, -0.5);
+  g.add(room);
+  g.add(box(3.05, 0.12, 2.45, mat.darkWood, 0, 2.25, -0.5));
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 3; c++) {
+      g.add(box(0.7, 0.1, 0.7, mat.koji, -0.9 + c * 0.9, 0.62, -0.9 + r * 0.9));
+    }
+  }
+  const warm = new THREE.PointLight(0xffaa66, 0.8, 5);
+  warm.position.set(0, 1.6, -0.5);
+  g.add(warm);
+}
+
+function buildShubo(g) {
+  g.add(cyl(1.05, 1.15, 1.8, mat.tank, 0, 1.2, -0.2));
+  g.add(cyl(0.85, 0.85, 0.5, mat.moromi, 0, 1.15, -0.2));
+  g.add(cyl(0.2, 0.2, 0.35, mat.metal, 0, 2.2, -0.2));
+  for (let i = 0; i < 16; i++) {
+    const b = sphere(0.045, new THREE.MeshStandardMaterial({ color: 0xf0e6b8, transparent: true, opacity: 0.75 }), 0, 1, 0);
+    b.userData.phase = Math.random() * Math.PI * 2;
+    b.userData.r = 0.15 + Math.random() * 0.6;
+    b.userData.baseY = 0.9;
+    b.userData.amp = 0.55;
+    bubbles.push(b);
+    g.add(b);
+  }
+}
+
+function buildMoromi(g) {
+  const tanks = [
+    { x: -1.25, label: "初添" },
+    { x: 0, label: "仲添" },
+    { x: 1.25, label: "留添" }
+  ];
+  tanks.forEach((t, i) => {
+    g.add(cyl(0.7, 0.78, 1.5 + i * 0.15, mat.tank, t.x, 1.05 + i * 0.07, -0.25));
+    g.add(cyl(0.55, 0.55, 0.45, mat.moromi, t.x, 1.0, -0.25));
+    for (let j = 0; j < 8; j++) {
+      const b = sphere(0.04, new THREE.MeshStandardMaterial({ color: 0xf2e4a8, transparent: true, opacity: 0.7 }), 0, 1, 0);
+      b.userData.phase = Math.random() * Math.PI * 2;
+      b.userData.r = 0.12 + Math.random() * 0.35;
+      b.userData.baseY = 0.8;
+      b.userData.amp = 0.45;
+      b.userData.ox = t.x;
+      b.userData.oz = -0.25;
+      bubbles.push(b);
+      g.add(b);
+    }
+  });
+  g.add(box(3.6, 0.12, 0.2, mat.metal, 0, 0.28, 0.55));
+}
+
+function buildPress(g) {
+  g.add(box(2.2, 0.2, 1.6, mat.press, 0, 0.55, -0.2));
+  g.add(box(0.18, 1.8, 0.18, mat.metal, -1.0, 1.45, -0.8));
+  g.add(box(0.18, 1.8, 0.18, mat.metal, 1.0, 1.45, -0.8));
+  g.add(box(0.18, 1.8, 0.18, mat.metal, -1.0, 1.45, 0.4));
+  g.add(box(0.18, 1.8, 0.18, mat.metal, 1.0, 1.45, 0.4));
+  const plate = box(1.8, 0.16, 1.3, mat.metal, 0, 1.55, -0.2);
+  plate.userData.bob = true;
+  bobbers.push(plate);
+  g.add(plate);
+  g.add(box(1.6, 0.7, 1.1, new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.85 }), 0, 0.95, -0.2));
+  g.add(cyl(0.25, 0.25, 0.5, mat.tank, 0.9, 0.55, 0.9));
+}
+
+function buildFilter(g) {
+  g.add(box(1.6, 1.4, 0.7, mat.filter, 0, 1.1, -0.2));
+  g.add(box(0.15, 1.1, 0.55, mat.metal, -0.55, 1.1, -0.2));
+  g.add(box(0.15, 1.1, 0.55, mat.metal, 0, 1.1, -0.2));
+  g.add(box(0.15, 1.1, 0.55, mat.metal, 0.55, 1.1, -0.2));
+  g.add(cyl(0.35, 0.35, 1.0, mat.tank, 1.15, 0.9, -0.2));
+  g.add(cyl(0.12, 0.12, 0.8, mat.metal, 0.55, 0.7, 0.35));
+}
+
+function buildPasteur(g) {
+  g.add(box(2.4, 0.9, 0.9, mat.heat, 0, 1.0, -0.15));
+  g.add(cyl(0.18, 0.18, 2.0, mat.copper, -0.7, 1.5, -0.15));
+  g.add(cyl(0.18, 0.18, 2.0, mat.copper, 0, 1.5, -0.15));
+  g.add(cyl(0.18, 0.18, 2.0, mat.copper, 0.7, 1.5, -0.15));
+  for (let i = 0; i < 8; i++) {
+    const puff = sphere(0.14, mat.steam.clone(), (i - 3.5) * 0.28, 1.7, -0.15);
+    puff.userData.phase = i * 0.5;
+    steamPuffs.push(puff);
+    g.add(puff);
+  }
+}
+
+function buildStorage(g) {
+  for (let i = 0; i < 3; i++) {
+    g.add(cyl(0.7, 0.7, 2.2, mat.tank, -1.15 + i * 1.15, 1.3, -0.3));
+    g.add(cyl(0.2, 0.2, 0.2, mat.metal, -1.15 + i * 1.15, 2.5, -0.3));
+  }
+}
+
+function buildBottle(g) {
+  g.add(box(2.6, 0.2, 1.2, mat.metal, 0, 0.7, 0.1));
+  for (let i = 0; i < 6; i++) {
+    const bottle = cyl(0.12, 0.16, 0.55, mat.bottle, -1.0 + i * 0.4, 1.05, 0.1);
+    bottle.userData.bob = true;
+    bottle.userData.phase = i * 0.6;
+    bobbers.push(bottle);
+    g.add(bottle);
+    g.add(cyl(0.06, 0.07, 0.16, mat.metal, -1.0 + i * 0.4, 1.4, 0.1));
+  }
+  g.add(box(1.2, 1.1, 0.8, mat.heat, 1.5, 1.15, -0.3));
+  for (let i = 0; i < 5; i++) {
+    const puff = sphere(0.1, mat.steam.clone(), 1.5, 1.8, -0.3);
+    puff.userData.phase = i;
+    steamPuffs.push(puff);
+    g.add(puff);
+  }
+}
+
+const builders = [buildSeimai, buildWash, buildSteamer, buildKoji, buildShubo, buildMoromi, buildPress, buildFilter, buildPasteur, buildStorage, buildWash, buildBottle];
+// warimizu reuses wash-like tank plus a water pipe — override index 10 below
+
+function buildWarimizu(g) {
+  g.add(cyl(1.0, 1.1, 1.8, mat.tank, -0.55, 1.2, -0.2));
+  g.add(cyl(0.8, 0.8, 0.4, new THREE.MeshStandardMaterial({ color: 0xd8c98a, transparent: true, opacity: 0.55, roughness: 0.3 }), -0.55, 1.2, -0.2));
+  g.add(cyl(0.55, 0.55, 1.3, mat.tank, 0.95, 0.95, -0.15));
+  g.add(box(0.12, 0.12, 1.0, mat.metal, 0.2, 1.85, -0.18));
+  g.add(cyl(0.08, 0.08, 0.5, mat.metal, 0.95, 1.7, -0.15));
+}
+
+const BUILDERS = {
+  seimai: buildSeimai,
+  senmai: buildWash,
+  mushimai: buildSteamer,
+  seikiku: buildKoji,
+  shubo: buildShubo,
+  moromi: buildMoromi,
+  joso: buildPress,
+  roka: buildFilter,
+  hiire: buildPasteur,
+  chozo: buildStorage,
+  warimizu: buildWarimizu,
+  binzume: buildBottle
+};
+
+STATIONS.forEach((st, i) => {
+  const g = new THREE.Group();
+  g.position.set(ORIGIN + i * PITCH, 0, 0);
+  g.userData.index = i;
+  g.userData.id = st.id;
+  (BUILDERS[st.id] || buildWash)(g);
+  const base = box(3.6, 0.16, 3.4, mat.darkWood, 0, 0.08, -0.3);
+  g.add(base);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.2, 3.6), new THREE.MeshBasicMaterial({ visible: false }));
+  hit.position.set(0, 1.6, -0.2);
+  hit.userData.index = i;
+  g.add(hit);
+  clickables.push(hit);
+  const ring = highlightRing();
+  g.add(ring);
+  g.userData.ring = ring;
+  scene.add(g);
+  stationGroups.push(g);
+  addLabel(g, `${i + 1}. ${st.name}`);
+  lamp(ORIGIN + i * PITCH, 1.2);
+});
+
+const camFrom = new THREE.Vector3();
+const camTo = new THREE.Vector3();
+const tgtFrom = new THREE.Vector3();
+const tgtTo = new THREE.Vector3();
+let camTween = null;
+let selected = -1;
+let touring = false;
+let tourTimer = 0;
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function stationCamera(i) {
+  const x = ORIGIN + i * PITCH;
+  return { pos: new THREE.Vector3(x + 0.4, 5.6, 8.6), target: new THREE.Vector3(x, 1.4, -0.2) };
+}
+
+function moveCameraTo(i, duration = 1.15) {
+  camFrom.copy(camera.position);
+  tgtFrom.copy(controls.target);
+  const v = stationCamera(i);
+  camTo.copy(v.pos);
+  tgtTo.copy(v.target);
+  camTween = { t: 0, dur: duration };
+}
+
+function renderPanel(i) {
+  const st = STATIONS[i];
+  const nums = st.numbers.map((n) => `<li>${n}</li>`).join("");
+  const nama = st.namazake ? `<div class="block"><h3>與生酒／生貯藏／生詰的關係</h3><p>${st.namazake}</p></div>` : "";
+  document.getElementById("panelBody").innerHTML = `
+    <div class="kicker">步驟 ${i + 1}／${STATIONS.length}</div>
+    <h2>${st.name}</h2>
+    <p class="romaji">${st.romaji}</p>
+    <div class="block"><h3>目的</h3><p>${st.purpose}</p></div>
+    <div class="block"><h3>怎麼做</h3><p>${st.method}</p></div>
+    <div class="block"><h3>關鍵數字與定義</h3><ul>${nums}</ul></div>
+    <div class="block exam"><h3>酒研填充題提點</h3><p>${st.exam}</p></div>
+    ${nama}
+  `;
+}
+
+const panel = document.getElementById("panel");
+const stepNav = document.getElementById("stepNav");
+
+STATIONS.forEach((st, i) => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = `${i + 1} ${st.short}`;
+  b.addEventListener("click", () => selectStation(i, true));
+  stepNav.appendChild(b);
+});
+
+function setNavCurrent(i) {
+  [...stepNav.children].forEach((el, idx) => el.setAttribute("aria-current", idx === i ? "true" : "false"));
+  const cur = stepNav.children[i];
+  if (cur) cur.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+}
+
+function selectStation(i, open = true) {
+  if (i < 0) i = STATIONS.length - 1;
+  if (i >= STATIONS.length) i = 0;
+  selected = i;
+  stationGroups.forEach((g, idx) => {
+    const ring = g.userData.ring;
+    ring.material.opacity = idx === i ? 0.95 : 0;
+    ring.scale.setScalar(idx === i ? 1 : 0.8);
+  });
+  labelNodes.forEach((n, idx) => n.el.classList.toggle("active", idx === i));
+  setNavCurrent(i);
+  moveCameraTo(i);
+  if (open) {
+    renderPanel(i);
+    panel.classList.add("open");
+    panel.setAttribute("aria-hidden", "false");
+  }
+  tourTimer = 0;
+}
+
+function closePanel() {
+  panel.classList.remove("open");
+  panel.setAttribute("aria-hidden", "true");
+}
+
+document.getElementById("btnClose").addEventListener("click", closePanel);
+document.getElementById("btnPrev").addEventListener("click", () => {
+  touring = false;
+  syncTourBtn();
+  selectStation(selected < 0 ? 0 : selected - 1, true);
+});
+document.getElementById("btnNext").addEventListener("click", () => {
+  touring = false;
+  syncTourBtn();
+  selectStation(selected < 0 ? 0 : selected + 1, true);
+});
+
+const btnTour = document.getElementById("btnTour");
+function syncTourBtn() {
+  btnTour.textContent = touring ? "停止導覽" : "自動導覽";
+  btnTour.setAttribute("aria-pressed", touring ? "true" : "false");
+}
+btnTour.addEventListener("click", () => {
+  touring = !touring;
+  syncTourBtn();
+  if (touring) {
+    if (selected < 0) selectStation(0, true);
+    else selectStation(selected, true);
+    tourTimer = 0;
+  }
+});
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const ptr = { x: 0, y: 0, t: 0, down: false };
+
+function setPointer(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  const x = ev.clientX ?? (ev.touches && ev.touches[0].clientX) ?? 0;
+  const y = ev.clientY ?? (ev.touches && ev.touches[0].clientY) ?? 0;
+  pointer.x = ((x - r.left) / r.width) * 2 - 1;
+  pointer.y = -((y - r.top) / r.height) * 2 + 1;
+  return { x, y };
+}
+
+function onPointerDown(ev) {
+  if (ev.target !== renderer.domElement) return;
+  const p = setPointer(ev);
+  ptr.x = p.x; ptr.y = p.y; ptr.t = performance.now(); ptr.down = true;
+}
+function onPointerUp(ev) {
+  if (!ptr.down) return;
+  ptr.down = false;
+  const p = setPointer(ev);
+  const dt = performance.now() - ptr.t;
+  const dist = Math.hypot(p.x - ptr.x, p.y - ptr.y);
+  if (dist > 8 || dt > 700) return;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(clickables, false);
+  if (hits.length) {
+    touring = false;
+    syncTourBtn();
+    selectStation(hits[0].object.userData.index, true);
+  }
+}
+renderer.domElement.addEventListener("pointerdown", onPointerDown);
+renderer.domElement.addEventListener("pointerup", onPointerUp);
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const clock = new THREE.Clock();
+const tmpV = new THREE.Vector3();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  const t = clock.elapsedTime;
+
+  if (camTween) {
+    camTween.t += dt;
+    const k = easeInOutCubic(Math.min(1, camTween.t / camTween.dur));
+    camera.position.lerpVectors(camFrom, camTo, k);
+    controls.target.lerpVectors(tgtFrom, tgtTo, k);
+    if (camTween.t >= camTween.dur) camTween = null;
+  } else if (touring && selected >= 0) {
+    tourTimer += dt;
+    if (tourTimer > 7) {
+      tourTimer = 0;
+      selectStation(selected + 1, true);
+    }
+  }
+
+  controls.update();
+
+  slats.forEach((s) => {
+    const u = (s.userData.offset + t * 0.04) % 1;
+    s.position.x = -beltLen / 2 + u * beltLen;
+  });
+
+  riceData.forEach((r, i) => {
+    const u = (r.t + t * 0.04) % 1;
+    riceDummy.position.set(-beltLen / 2 + u * beltLen, r.y + Math.sin(t * 3 + i) * 0.01, 2.2 + r.z);
+    riceDummy.rotation.set(t + r.spin, t * 0.7, 0);
+    riceDummy.updateMatrix();
+    riceMesh.setMatrixAt(i, riceDummy.matrix);
+  });
+  riceMesh.instanceMatrix.needsUpdate = true;
+
+  steamPuffs.forEach((p, i) => {
+    const ph = t * 0.7 + p.userData.phase;
+    p.position.y = (p.userData.baseY || 2.3) + (ph % 1.6);
+    const fade = 1 - ((ph % 1.6) / 1.6);
+    p.material.opacity = 0.08 + fade * 0.18;
+    const s = 0.6 + (ph % 1.6) * 0.5;
+    p.scale.setScalar(s);
+  });
+
+  bubbles.forEach((b) => {
+    const ph = t * 0.9 + b.userData.phase;
+    const ang = ph * 0.7;
+    const ox = b.userData.ox || 0;
+    const oz = b.userData.oz || 0;
+    b.position.x = ox + Math.cos(ang) * b.userData.r * 0.5;
+    b.position.z = oz + Math.sin(ang) * b.userData.r * 0.4;
+    b.position.y = b.userData.baseY + (ph % 1) * b.userData.amp;
+  });
+
+  bobbers.forEach((m) => {
+    if (m.userData.spin) m.rotation.y = t * 1.6;
+    if (m.userData.restY == null) m.userData.restY = m.position.y;
+    if (m.userData.bob) m.position.y = m.userData.restY + Math.sin(t * 2 + (m.userData.phase || 0)) * 0.08;
+  });
+
+  if (selected >= 0) {
+    const ring = stationGroups[selected].userData.ring;
+    const s = 1 + Math.sin(t * 3) * 0.04;
+    ring.scale.setScalar(s);
+  }
+
+  labelNodes.forEach((n, i) => {
+    tmpV.set(0, 2.8, 0);
+    n.group.localToWorld(tmpV);
+    tmpV.project(camera);
+    const x = (tmpV.x * 0.5 + 0.5) * innerWidth;
+    const y = (-tmpV.y * 0.5 + 0.5) * innerHeight;
+    const vis = tmpV.z < 1 && tmpV.z > -1;
+    n.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -120%)`;
+    n.el.classList.toggle("on", vis);
+  });
+
+  renderer.render(scene, camera);
+}
+
+animate();
+document.getElementById("loading").classList.add("hide");
+setTimeout(() => document.getElementById("loading").remove(), 600);
+
+window.__SAKE_READY = true;
+window.__selectStation = (i) => selectStation(i, true);
+window.__stations = STATIONS.map((s) => s.id);
+
+  </script>
+</body>
+</html>

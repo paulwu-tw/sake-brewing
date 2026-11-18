@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#1a1410" />
   <title>清酒釀造流水線｜互動式動畫</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231a1410'/%3E%3Ccircle cx='16' cy='18' r='9' fill='%23e0b25a'/%3E%3Crect x='14' y='6' width='4' height='6' rx='1' fill='%23e0b25a'/%3E%3C/svg%3E">
@@ -18,8 +18,8 @@
       --ui: "Noto Sans TC", "PingFang TC", "Hiragino Sans CNS", "Microsoft JhengHei", sans-serif;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--ui); overflow: hidden; }
-    #canvas-wrap { position: fixed; inset: 0; }
+    html, body { margin: 0; height: 100%; height: 100dvh; background: var(--bg); color: var(--ink); font-family: var(--ui); overflow: hidden; overscroll-behavior: none; }
+    #canvas-wrap { position: fixed; inset: 0; touch-action: none; }
     canvas { display: block; width: 100%; height: 100%; touch-action: none; }
     .ui { position: relative; z-index: 2; pointer-events: none; }
     .ui > * { pointer-events: auto; }
@@ -75,10 +75,17 @@
       transform: translateX(110%); transition: transform .45s cubic-bezier(.2,.8,.2,1);
       overflow: auto; padding: calc(18px + env(safe-area-inset-top)) 20px 120px;
       box-shadow: var(--shadow); backdrop-filter: blur(16px);
+      touch-action: pan-y; overscroll-behavior: contain;
     }
     aside.panel.open { transform: translateX(0); }
+    .sheet-bar {
+      position: sticky; top: 0; z-index: 2;
+      display: flex; justify-content: flex-end; align-items: center;
+      min-height: 40px; margin: 0 0 8px; background: transparent;
+    }
+    .sheet-toggle { display: none; }
     .panel-close {
-      position: sticky; top: 0; float: right; width: 40px; height: 40px;
+      position: static; float: none; width: 40px; height: 40px;
       border: 1px solid var(--line); background: rgba(255,255,255,.06);
       color: var(--ink); border-radius: 50%; cursor: pointer; font-size: 20px;
     }
@@ -107,17 +114,60 @@
     .label.active { background: var(--gold); color: #1a1410; border-color: var(--gold); font-weight: 700; }
     .loading { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #1a1410; color: var(--ink); }
     .loading.hide { opacity: 0; pointer-events: none; transition: opacity .5s; }
-    @media (max-width: 720px) {
+    .step-nav, .lane-nav { touch-action: pan-x; overscroll-behavior: contain; }
+    @media (max-width: 767px) {
+      header { padding: calc(8px + env(safe-area-inset-top)) 12px 4px; }
+      header h1 { font-size: 16px; letter-spacing: .03em; }
+      header p { display: none; }
+      .hint { font-size: 11px; margin-top: 2px; }
+      .hint .wide { display: none; }
+      .hint .narrow { display: inline; }
+      .dock {
+        left: 8px; right: 8px; width: auto; transform: none;
+        bottom: calc(8px + env(safe-area-inset-bottom));
+        flex-wrap: wrap; justify-content: center; gap: 3px;
+        padding: 5px; border-radius: 20px;
+      }
+      .dock button { min-width: 44px; min-height: 44px; padding: 0 8px; font-size: 12px; }
+      .dock .speed { padding: 0 2px; gap: 1px; }
+      .dock .speed button { min-width: 40px; min-height: 44px; padding: 0 6px; }
+      .lane-nav, .step-nav { flex-wrap: nowrap; gap: 6px; padding: 0 10px 4px; }
+      .lane-nav button, .step-nav button { padding: 6px 10px; font-size: 11px; }
+      .lane-nav { bottom: calc(110px + env(safe-area-inset-bottom)); }
+      .step-nav { bottom: calc(68px + env(safe-area-inset-bottom)); }
       aside.panel {
-        top: auto; left: 0; width: 100%; height: auto; max-height: 58vh;
+        top: auto; left: 0; right: 0; width: 100%; height: auto;
+        max-height: min(40vh, 340px);
+        bottom: calc(152px + env(safe-area-inset-bottom));
         border-left: 0; border-top: 1px solid var(--line);
-        transform: translateY(110%); border-radius: 20px 20px 0 0;
-        padding: 16px 16px calc(126px + env(safe-area-inset-bottom));
+        border-radius: 16px 16px 0 0;
+        transform: translateY(calc(100% + 28px));
+        padding: 0 16px 12px;
+        display: flex; flex-direction: column;
+        overflow: hidden;
       }
       aside.panel.open { transform: translateY(0); }
-      header p { display: none; }
-      .lane-nav { bottom: calc(112px + env(safe-area-inset-bottom)); }
-      .step-nav { bottom: calc(70px + env(safe-area-inset-bottom)); }
+      aside.panel.collapsed { max-height: 52px; }
+      .sheet-bar {
+        position: relative; justify-content: center;
+        min-height: 36px; margin: 0 -16px 8px; padding: 10px 48px 4px;
+        flex: 0 0 auto;
+      }
+      .sheet-toggle {
+        display: grid; place-items: center;
+        width: 100%; height: 22px; border: 0; background: transparent; cursor: pointer;
+      }
+      .sheet-handle {
+        display: block; width: 40px; height: 4px; border-radius: 2px;
+        background: rgba(244,239,230,.4);
+      }
+      .panel-close { position: absolute; right: 10px; top: 4px; width: 40px; height: 40px; }
+      #panelBody { overflow: auto; -webkit-overflow-scrolling: touch; flex: 1; min-height: 0; touch-action: pan-y; }
+      aside.panel.collapsed #panelBody { visibility: hidden; overflow: hidden; }
+      aside h2 { font-size: 20px; }
+    }
+    @media (min-width: 768px) {
+      .hint .narrow { display: none; }
     }
   </style>
   <script type="importmap">
@@ -137,7 +187,7 @@
       <div>
         <h1>清酒釀造流水線</h1>
         <p>從精米（seimai）到瓶詰（binzume）。濾過之後依火入れ分成四條路線：一般酒、生貯藏酒、生詰酒、生酒（本生）。內容與酒研考試重點一致。</p>
-        <div class="hint">拖曳可旋轉視角　點機台或分流路線看細節　可自動導覽　輸送帶預設為慢速</div>
+        <div class="hint"><span class="wide">左鍵拖移　右鍵旋轉　滾輪縮放　點機台或分流路線看細節　可自動導覽或總覽　輸送帶預設為慢速</span><span class="narrow">單指拖移　雙指縮放旋轉　點機台看說明</span></div>
       </div>
     </header>
     <nav class="lane-nav" id="laneNav" aria-label="火入れ分流路線"></nav>
@@ -149,11 +199,17 @@
         <button type="button" data-speed="1" aria-pressed="false" title="約為原本的三分之一">1×</button>
         <button type="button" data-speed="2" aria-pressed="false">2×</button>
       </div>
+      <button type="button" id="btnOverview">總覽</button>
       <button type="button" id="btnTour" class="primary" aria-pressed="false">自動導覽</button>
       <button type="button" id="btnNext">下一步</button>
     </div>
     <aside class="panel" id="panel" aria-hidden="true">
-      <button type="button" class="panel-close" id="btnClose" aria-label="關閉">×</button>
+      <div class="sheet-bar">
+        <button type="button" class="sheet-toggle" id="btnSheet" aria-label="收合說明" aria-expanded="true">
+          <span class="sheet-handle" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="panel-close" id="btnClose" aria-label="關閉">×</button>
+      </div>
       <div id="panelBody"></div>
     </aside>
   </div>
@@ -344,10 +400,19 @@ const LANES = [
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1410);
-scene.fog = new THREE.Fog(0x1a1410, 40, 100);
+scene.fog = new THREE.Fog(0x1a1410, 90, 320);
 
-const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(2, 14, 24);
+const FACTORY_MIN_X = MAIN_BELT_START - 8;
+const FACTORY_MAX_X = LANE_BELT_END + 10;
+const FACTORY_MIN_Z = -16;
+const FACTORY_MAX_Z = 16;
+const FACTORY_MID_X = (MAIN_BELT_START + LANE_BELT_END) / 2;
+
+function isNarrowView() {
+  return innerWidth < 768;
+}
+
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 500);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -360,11 +425,60 @@ document.getElementById("canvas-wrap").appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.minDistance = 5;
-controls.maxDistance = 60;
-controls.maxPolarAngle = Math.PI * 0.48;
-controls.target.set(2, 1.6, 0);
-controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+controls.enablePan = true;
+controls.enableRotate = true;
+controls.enableZoom = true;
+controls.screenSpacePanning = true;
+controls.minDistance = 3;
+controls.maxDistance = 260;
+controls.minPolarAngle = 0.06;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.mouseButtons = {
+  LEFT: THREE.MOUSE.PAN,
+  MIDDLE: THREE.MOUSE.DOLLY,
+  RIGHT: THREE.MOUSE.ROTATE
+};
+controls.touches = {
+  ONE: THREE.TOUCH.PAN,
+  TWO: THREE.TOUCH.DOLLY_ROTATE
+};
+
+function syncCameraLens() {
+  camera.fov = isNarrowView() ? 60 : 48;
+  camera.near = 0.1;
+  camera.far = 500;
+  camera.aspect = innerWidth / Math.max(1, innerHeight);
+  camera.updateProjectionMatrix();
+}
+
+function overviewPose() {
+  const midX = FACTORY_MID_X;
+  if (isNarrowView()) {
+    return { pos: new THREE.Vector3(midX, 68, 172), target: new THREE.Vector3(midX, 1.2, 0) };
+  }
+  return { pos: new THREE.Vector3(midX, 28, 58), target: new THREE.Vector3(midX, 1.3, 0) };
+}
+
+function applyOverview(instant) {
+  syncCameraLens();
+  const v = overviewPose();
+  if (instant) {
+    camTween = null;
+    camera.position.copy(v.pos);
+    controls.target.copy(v.target);
+    controls.update();
+  } else {
+    tweenCamera(v.pos, v.target, 1.05);
+  }
+}
+
+syncCameraLens();
+{
+  const v = overviewPose();
+  camera.position.copy(v.pos);
+  controls.target.copy(v.target);
+  controls.update();
+}
 
 const hemi = new THREE.HemisphereLight(0xfff1d6, 0x2a1c12, 0.75);
 scene.add(hemi);
@@ -1228,17 +1342,35 @@ function easeInOutCubic(t) {
 }
 
 function stationCamera(i) {
+  const n = isNarrowView();
   if (i < MAIN_COUNT) {
     const x = ORIGIN + i * PITCH;
-    return { pos: new THREE.Vector3(x + 0.4, 5.6, 8.6), target: new THREE.Vector3(x, 1.4, 0) };
+    return { pos: new THREE.Vector3(x + 0.4, n ? 7.4 : 5.6, n ? 12.2 : 8.6), target: new THREE.Vector3(x, 1.4, 0) };
   }
   const x = branchX(i - MAIN_COUNT);
-  return { pos: new THREE.Vector3(x + 0.4, 9.2, 16.5), target: new THREE.Vector3(x, 1.3, 0) };
+  return { pos: new THREE.Vector3(x + 0.4, n ? 11.4 : 9.2, n ? 20 : 16.5), target: new THREE.Vector3(x, 1.3, 0) };
 }
 
 function laneCamera(li) {
+  const n = isNarrowView();
   const mid = BRANCH_X0 + BRANCH_SPAN * 0.42;
-  return { pos: new THREE.Vector3(mid - 0.6, 5.4, LANE_Z[li] + 7.4), target: new THREE.Vector3(mid, 1.2, LANE_Z[li]) };
+  return { pos: new THREE.Vector3(mid - 0.6, n ? 7.2 : 5.4, LANE_Z[li] + (n ? 9.6 : 7.4)), target: new THREE.Vector3(mid, 1.2, LANE_Z[li]) };
+}
+
+function cancelCamTween() {
+  camTween = null;
+}
+
+function stopTour() {
+  if (touring) {
+    touring = false;
+    syncTourBtn();
+  }
+}
+
+function onUserNavigate() {
+  cancelCamTween();
+  stopTour();
 }
 
 function tweenCamera(pos, target, duration = 1.15) {
@@ -1247,6 +1379,65 @@ function tweenCamera(pos, target, duration = 1.15) {
   camTo.copy(pos);
   tgtTo.copy(target);
   camTween = { t: 0, dur: duration };
+}
+
+function clampTarget() {
+  const t = controls.target;
+  const cx = THREE.MathUtils.clamp(t.x, FACTORY_MIN_X, FACTORY_MAX_X);
+  const cy = THREE.MathUtils.clamp(t.y, 0.4, 14);
+  const cz = THREE.MathUtils.clamp(t.z, FACTORY_MIN_Z, FACTORY_MAX_Z);
+  const dx = cx - t.x, dy = cy - t.y, dz = cz - t.z;
+  if (dx || dy || dz) {
+    t.set(cx, cy, cz);
+    camera.position.x += dx;
+    camera.position.y += dy;
+    camera.position.z += dz;
+  }
+}
+
+const keyPan = Object.create(null);
+const PAN_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"]);
+const _panFwd = new THREE.Vector3();
+const _panRight = new THREE.Vector3();
+const _panUp = new THREE.Vector3(0, 1, 0);
+
+window.addEventListener("keydown", (ev) => {
+  if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (!PAN_KEYS.has(ev.code)) return;
+  ev.preventDefault();
+  if (!keyPan[ev.code]) onUserNavigate();
+  keyPan[ev.code] = true;
+});
+window.addEventListener("keyup", (ev) => {
+  if (PAN_KEYS.has(ev.code)) keyPan[ev.code] = false;
+});
+
+function applyKeyboardPan(dt) {
+  let wx = 0, wz = 0;
+  if (keyPan.KeyD || keyPan.ArrowRight) wx += 1;
+  if (keyPan.KeyA || keyPan.ArrowLeft) wx -= 1;
+  if (keyPan.KeyW || keyPan.ArrowUp) wz += 1;
+  if (keyPan.KeyS || keyPan.ArrowDown) wz -= 1;
+  if (!wx && !wz) return;
+  _panFwd.copy(controls.target).sub(camera.position);
+  _panFwd.y = 0;
+  if (_panFwd.lengthSq() < 1e-6) _panFwd.set(0, 0, -1);
+  _panFwd.normalize();
+  _panRight.crossVectors(_panFwd, _panUp).normalize();
+  const dist = camera.position.distanceTo(controls.target);
+  const speed = Math.max(8, dist * 0.9) * dt;
+  const len = Math.hypot(wx, wz) || 1;
+  const sx = (_panRight.x * wx + _panFwd.x * wz) / len * speed;
+  const sz = (_panRight.z * wx + _panFwd.z * wz) / len * speed;
+  camera.position.x += sx;
+  camera.position.z += sz;
+  controls.target.x += sx;
+  controls.target.z += sz;
+}
+
+function goOverview(animateCam = true) {
+  stopTour();
+  applyOverview(!animateCam);
 }
 
 function moveCameraTo(i, duration = 1.15) {
@@ -1422,7 +1613,10 @@ function setHighlights(stationIdx, laneIdx) {
 
 function openPanel() {
   panel.classList.add("open");
+  panel.classList.remove("collapsed");
   panel.setAttribute("aria-hidden", "false");
+  const tog = document.getElementById("btnSheet");
+  if (tog) tog.setAttribute("aria-expanded", "true");
 }
 
 function selectStation(i, open = true, laneHint = -1) {
@@ -1462,10 +1656,16 @@ function selectLane(li, open = true) {
 
 function closePanel() {
   panel.classList.remove("open");
+  panel.classList.remove("collapsed");
   panel.setAttribute("aria-hidden", "true");
 }
 
 document.getElementById("btnClose").addEventListener("click", closePanel);
+document.getElementById("btnSheet").addEventListener("click", () => {
+  const collapsed = panel.classList.toggle("collapsed");
+  document.getElementById("btnSheet").setAttribute("aria-expanded", collapsed ? "false" : "true");
+});
+document.getElementById("btnOverview").addEventListener("click", () => goOverview(true));
 document.getElementById("btnPrev").addEventListener("click", () => {
   touring = false;
   syncTourBtn();
@@ -1507,6 +1707,7 @@ function setPointer(ev) {
 
 function onPointerDown(ev) {
   if (ev.target !== renderer.domElement) return;
+  onUserNavigate();
   const p = setPointer(ev);
   ptr.x = p.x; ptr.y = p.y; ptr.t = performance.now(); ptr.down = true;
 }
@@ -1529,10 +1730,14 @@ function onPointerUp(ev) {
 }
 renderer.domElement.addEventListener("pointerdown", onPointerDown);
 renderer.domElement.addEventListener("pointerup", onPointerUp);
+renderer.domElement.addEventListener("wheel", onUserNavigate, { passive: true });
+renderer.domElement.addEventListener("contextmenu", (ev) => ev.preventDefault());
+document.addEventListener("touchmove", (ev) => {
+  if (ev.target === renderer.domElement) ev.preventDefault();
+}, { passive: false });
 
 window.addEventListener("resize", () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
+  syncCameraLens();
   renderer.setSize(innerWidth, innerHeight);
 });
 
@@ -1579,7 +1784,9 @@ function animate() {
     }
   }
 
+  applyKeyboardPan(dt);
   controls.update();
+  if (!camTween) clampTarget();
 
   beltPos += dt * WORLD_SPEED * beltMul;
   slats.forEach((s) => {
@@ -1711,10 +1918,26 @@ window.__cargoSample = () => {
 window.__viewCargo = () => {
   selected = -1;
   selectedLane = -1;
+  cancelCamTween();
   camera.position.set(ORIGIN + PITCH * 3.7, 8.6, 19.5);
   controls.target.set(ORIGIN + PITCH * 3.7, 1.2, 0);
   controls.update();
 };
+window.__overview = () => goOverview(false);
+window.__camState = () => ({
+  pos: camera.position.toArray(),
+  target: controls.target.toArray(),
+  tween: !!camTween,
+  touring,
+  fov: camera.fov,
+  pan: controls.enablePan,
+  screenSpace: controls.screenSpacePanning,
+  leftBtn: controls.mouseButtons.LEFT,
+  rightBtn: controls.mouseButtons.RIGHT,
+  touchOne: controls.touches.ONE,
+  touchTwo: controls.touches.TWO,
+  maxDistance: controls.maxDistance
+});
 
   </script>
 </body>

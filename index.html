@@ -31,6 +31,19 @@
     header h1 { margin: 0; font-size: clamp(18px, 3vw, 24px); font-weight: 700; letter-spacing: .04em; }
     header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
     .hint { color: var(--gold); font-size: 12px; margin-top: 6px; }
+    .lane-nav {
+      position: fixed; left: 0; right: 0;
+      bottom: calc(118px + env(safe-area-inset-bottom));
+      display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 6px;
+      scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+    }
+    .lane-nav button {
+      flex: 0 0 auto; border: 2px solid var(--lane, var(--gold));
+      background: rgba(26,20,16,.78); color: var(--ink);
+      border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 12px;
+      cursor: pointer; white-space: nowrap;
+    }
+    .lane-nav button[aria-current="true"] { background: var(--lane, var(--gold)); color: #1a1410; font-weight: 700; }
     .step-nav {
       position: fixed; left: 0; right: 0;
       bottom: calc(76px + env(safe-area-inset-bottom));
@@ -78,6 +91,12 @@
     .block ul { margin: 0; padding-left: 1.1em; }
     .block li + li { margin-top: 6px; }
     .exam { border-color: rgba(224,178,90,.55); background: rgba(224,178,90,.08); }
+    .diagram { padding: 10px 10px 8px; }
+    .diagram svg { display: block; width: 100%; height: auto; }
+    .diagram .cap { margin: 8px 0 0; font-size: 11px; color: var(--muted); line-height: 1.55; }
+    .dock .speed { display: flex; align-items: center; gap: 2px; padding: 0 4px; }
+    .dock .speed button { min-width: 40px; min-height: 36px; padding: 0 8px; font-size: 13px; border-radius: 999px; }
+    .dock .speed button[aria-pressed="true"] { background: var(--gold); color: #1a1410; }
     .labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
     .label {
       position: absolute; left: 0; top: 0; transform: translate(-50%, -120%);
@@ -93,10 +112,11 @@
         top: auto; left: 0; width: 100%; height: auto; max-height: 58vh;
         border-left: 0; border-top: 1px solid var(--line);
         transform: translateY(110%); border-radius: 20px 20px 0 0;
-        padding: 16px 16px calc(110px + env(safe-area-inset-bottom));
+        padding: 16px 16px calc(126px + env(safe-area-inset-bottom));
       }
       aside.panel.open { transform: translateY(0); }
       header p { display: none; }
+      .lane-nav { bottom: calc(112px + env(safe-area-inset-bottom)); }
       .step-nav { bottom: calc(70px + env(safe-area-inset-bottom)); }
     }
   </style>
@@ -116,13 +136,19 @@
     <header>
       <div>
         <h1>清酒釀造流水線</h1>
-        <p>從精米（seimai）到瓶詰（binzume）的互動式動畫。點擊機台查看說明；內容與酒研考試重點一致。</p>
-        <div class="hint">拖曳可旋轉視角　點機台看細節　可自動導覽</div>
+        <p>從精米（seimai）到瓶詰（binzume）。濾過之後依火入れ分成四條路線：一般酒、生貯藏酒、生詰酒、生酒（本生）。內容與酒研考試重點一致。</p>
+        <div class="hint">拖曳可旋轉視角　點機台或分流路線看細節　可自動導覽　輸送帶預設為慢速</div>
       </div>
     </header>
+    <nav class="lane-nav" id="laneNav" aria-label="火入れ分流路線"></nav>
     <nav class="step-nav" id="stepNav" aria-label="釀造步驟"></nav>
     <div class="dock">
       <button type="button" id="btnPrev">上一步</button>
+      <div class="speed" role="group" aria-label="輸送帶速度">
+        <button type="button" data-speed="0.5" aria-pressed="true" title="更慢，預設">0.5×</button>
+        <button type="button" data-speed="1" aria-pressed="false" title="約為原本的三分之一">1×</button>
+        <button type="button" data-speed="2" aria-pressed="false">2×</button>
+      </div>
       <button type="button" id="btnTour" class="primary" aria-pressed="false">自動導覽</button>
       <button type="button" id="btnNext">下一步</button>
     </div>
@@ -187,18 +213,26 @@ const STATIONS = [
   {
     id: "moromi", name: "醪・三段仕入（三段仕込み）", romaji: "moromi（もろみ）、sandan-jikomi（さんだんじこみ）", short: "醪",
     purpose: "把麴、蒸米、水分三次加入酒母，在醪中同時完成糖化與酒精發酵，造出酒體。",
-    method: "四個階段：初添（hatsuzoe，第 1 日）→ 踊り（odori，第 2 日休息，讓酵母增殖）→ 仲添（nakazoe，第 3 日）→ 留添（tomezoe，第 4 日）。目的是抑制雜菌、促進酵母增殖，並便於溫度管理。這就是並行複發酵（heikō fukuhakkō）：與葡萄酒（果汁已含糖）、啤酒（先糖化再發酵，單行）都不同。",
-    numbers: ["三段仕入（三段仕込み）約在四日內完成添料；其後並行發酵約二十日。從精米到成酒大約六十日。"],
-    exam: "填充題核心：默寫「初添、踊り、仲添、留添」，以及「並行複發酵＝糖化與酒精發酵在醪中同時進行」。",
-    namazake: ""
+    method: "酒研講義寫：主發酵前會進行四天三次投料的作業，稱為「三段仕入」（三段仕込み，sandan-jikomi）。四個階段：初添（hatsuzoe，第 1 日）→ 踊り（odori，第 2 日休息，讓酵母增殖）→ 仲添（nakazoe，第 3 日）→ 留添（tomezoe，第 4 日）。分次投入是為了在酸性環境裡培養更多健全酵母，也避免一次把原料全倒進去，讓酸度一下子被沖淡。這就是並行複發酵（heikō fukuhakkō）：與葡萄酒（果汁已含糖）、啤酒（先糖化再發酵，單行）都不同。",
+    numbers: [
+      "三段仕入作業原料投入的比例（酒研講義，量估整體量）：酒母約 6%（第 1 日先投入）→ 初添約 20%（麴：蒸米＝2：3，加水）→ 仲添約 30%（麴：蒸米＝1：2，加水）→ 留添約 44%（麴：蒸米＝1：5，加水）。踊り第 2 日不投料。",
+      "四日內完成添料；其後並行發酵約二十日。從精米到成酒大約六十日。"
+    ],
+    exam: "填充題核心：默寫「初添、踊り、仲添、留添」，以及「並行複發酵＝糖化與酒精發酵在醪中同時進行」。也要能寫出酒研講義的量估比例（6%、20%、30%、44%）與麴：蒸米（2：3、1：2、1：5）。",
+    namazake: "",
+    diagram: "sandan"
   },
   {
     id: "joso", name: "上槽", romaji: "jōsō（じょうそう）", short: "上槽",
-    purpose: "壓槽，把酒液與酒粕（sake kasu）分開。",
-    method: "用槽或自動壓榨機把醪壓出清酒。用目較粗的布濾過醪、呈白濁者稱にごり酒（nigorizake）。未火入れ者有時稱活性酒（kassei-shu）。",
-    numbers: ["上槽是固液分離，沒有像精米步合那樣的法定百分比；重點是分出酒與酒粕。"],
-    exam: "流程主軸裡必須有「上槽」。にごり酒要能說出「用較粗的布濾過醪，呈白濁」。",
-    namazake: ""
+    purpose: "把發酵完成的醪分成兩部分：液體是酒，固體是酒粕（sake kasu）。",
+    method: "常見有三種做法。槽搾（fune-shibori）是傳統法：把醪裝進酒袋，層層疊進稱為槽（fune）的箱裡再加壓。自然垂滴法（shizen-suiteki-hō）不靠機械加壓，只把裝袋的醪懸掛起來，讓酒靠自身重量慢慢滴下；這種懸掛叫袋吊（fukuro-tsuri），滴下來的酒叫雫酒（shizuku-zake），若用一斗瓶接著收集，稱斗瓶圍（tobin-gakoi，講義用字為「圍」）。目前最普遍的是手風琴式壓搾，也就是藪田式（yabuta）自動壓搾機。用目較粗的布濾過、呈白濁者稱にごり酒（nigorizake）；未火入れ者有時稱活性酒（kassei-shu）。",
+    numbers: [
+      "壓出的酒依前、中、後段風味不同：荒走（arabashiri，前段）較濁、帶一點微氣泡；中取（nakadori，中段）香氣最好、也最均衡；責め（seme，後段；講義亦見「責苦」）酸、苦、澀較重。",
+      "上槽本身沒有像精米步合那樣的法定百分比；重點是分出酒與酒粕，並分清三種做法與三段取酒名稱。"
+    ],
+    exam: "填充題必背：上槽＝分出酒與酒粕。三種做法（槽搾、自然垂滴法、手風琴式壓搾）、袋吊／雫酒／斗瓶圍，以及荒走、中取、責め的順序與特徵。にごり酒仍要能說出「用較粗的布濾過醪，呈白濁」。",
+    namazake: "",
+    diagram: "joso"
   },
   {
     id: "roka", name: "濾過", romaji: "roka（ろか）；酒稅法上的濾過是こす（kosu）", short: "濾過",
@@ -210,19 +244,24 @@ const STATIONS = [
   },
   {
     id: "hiire", name: "火入れ", romaji: "hiire（ひいれ；亦寫 hi-ire）", short: "火入れ",
-    purpose: "加熱殺菌、使酵素失活，穩定品質與香氣，並利於貯藏。",
-    method: "普通酒（futsū-shu）常在貯藏前與出貨（裝瓶）前各火入れ一次，共兩次。決定生酒系的口訣：看火入れ做了幾次、在哪一步做。",
-    numbers: ["普通火入れ酒：貯藏前一次、出貨前一次。生酒相關定義見下方。"],
-    exam: "生酒三兄弟是填充題必背。生酒（namazake）：製成後一次都不火入れ。生貯藏酒（namachozō-shu）：貯藏前不、出貨時才。生詰酒（namazume-shu）：貯藏前有、裝瓶時無。國稅廳表示基準有規範生酒與生貯藏酒；生詰酒是業界慣用語。",
-    namazake: "這一站就是「貯藏前」的那一次火入れ。若省略它、只在出貨時才加熱，就是生貯藏酒。若這裡與出貨時都不加熱，就是生酒，必須冷藏。"
+    purpose: "把酒加熱到約 60–65℃，做殺菌，並使殘餘酵素失活，穩定品質與香氣，也利於之後貯藏。",
+    method: "濾過之後不再是單一條線，而是依「火入れ做了幾次、在哪一步做」分成四條路線。這一柱是貯藏前的一次火入れ。一般酒（ippan-shu／普通酒 futsū-shu）與生詰酒（namazume-shu）會通過這裡；生貯藏酒（namachozō-shu）與生酒（namazake，亦稱本生 hon-nama）從旁繞過，不加熱。",
+    numbers: [
+      "火入れ溫度約 60–65℃，目的是殺菌與使酵素失活。",
+      "通過一次火入れ：一般酒、生詰酒。不經過：生貯藏酒、生酒。"
+    ],
+    exam: "生酒三兄弟是填充題必背。生酒（namazake／本生 hon-nama）：一次都不火入れ，須冷藏。生貯藏酒（namachozō-shu）：貯藏前不、出貨時才。生詰酒（namazume-shu）：貯藏前有、裝瓶時無。一般酒／普通酒則貯藏前與出貨前各一次。國稅廳表示基準有規範生酒與生貯藏酒；生詰酒是業界慣用語。",
+    namazake: "點各條分流或各座火入れ機，可看到誰走這一道、誰繞道。生貯藏酒與生酒都不經過「貯藏前」這一次。",
+    diagram: "routes"
   },
   {
     id: "chozo", name: "貯藏", romaji: "chozō（貯蔵／ちょぞう）", short: "貯藏",
-    purpose: "讓酒在貯槽中熟成、安定香味，再進入割水與出貨。",
-    method: "貯藏於陰涼、溫度穩定處。陽光與高溫易致日曬味／日光臭（nikkō-shū）。古酒（koshu）／長期熟成酒（chōki jukusei-shu）經長期貯藏；SSI 將典型熟酒（jukushu）說成 3 年以上（尤其 10 年以上）熟成者。貯藏年數若標示，以滿 1 年的年數為準（未滿 1 年捨去）。",
-    numbers: ["熟酒理想飲用溫度 15–25℃，與貯藏時間、色澤加深有關，但那是飲用與分類，不是這一步的法定工時。"],
+    purpose: "讓酒在貯槽中安定香味，再進入割水與出貨。四條路線的貯藏狀態不同。",
+    method: "一般酒與生詰酒是在一次火入れ之後才貯藏。生貯藏酒走「生のまま貯藏」（nama no mama chozō）：貯藏前不加熱，仍保有一些生酒的鮮度。生酒（本生）全程不加熱，須低溫貯藏。無論哪一條，都宜避光、避熱，以免產生日曬味／日光臭（nikkō-shū）。古酒（koshu）／長期熟成酒（chōki jukusei-shu）經長期貯藏；SSI 將典型熟酒（jukushu）說成 3 年以上（尤其 10 年以上）熟成者。貯藏年數若標示，以滿 1 年的年數為準（未滿 1 年捨去）。",
+    numbers: ["四條路線都會經過貯藏，但只有生酒是低溫、完全未加熱的貯藏；生貯藏酒則是貯藏前不火入れ。"],
     exam: "生貯藏酒的關鍵就是「貯藏前不火入れ」。用字若與講義不同（貯藏／貯蔵），以酒研講義為準。",
-    namazake: "生貯藏酒：在此階段保持未加熱，出貨（裝瓶）時才火入れ，仍保有一些生酒的鮮度。生酒則連貯藏期間也不加熱，須全程冷藏。"
+    namazake: "對照四條線最容易記：一般酒與生詰＝先加熱再貯藏；生貯藏＝生のまま貯藏、出貨才加熱；生酒＝貯藏期間也不加熱，必須冷藏。",
+    diagram: "routes"
   },
   {
     id: "warimizu", name: "割水", romaji: "warimizu（わりみず）", short: "割水",
@@ -230,27 +269,85 @@ const STATIONS = [
     method: "把釀造用水加入貯藏後的酒。市售酒多約 15%–16%。原酒（genshu）是製成後不以加水調整酒精分等的酒，酒精分通常較高（中央會常提約 18–20 度）；但為調整批次差異，酒精分 1% 未滿的加水仍可標示原酒。產地名標示須全部在該產地釀造（含割水）才可標。",
     numbers: ["市售酒多約 15%–16%。原酒可有 1% 未滿的加水例外。法定清酒（seishu）酒精分未滿 22 度。"],
     exam: "必背：割水與原酒的關係、以及「1% 未滿仍可稱原酒」。地理標示「日本酒」（Nihonshu）則更嚴：須日本國內產米，並在日本國內釀造。",
-    namazake: ""
+    namazake: "四條分流在貯藏之後都會做割水，再依類型決定要不要二次火入れ。",
+    diagram: "routes"
   },
   {
     id: "binzume", name: "瓶詰・二次火入れ", romaji: "binzume（びんづめ）；第二次 hiire", short: "瓶詰",
-    purpose: "裝瓶出貨。許多普通酒會在出貨／裝瓶前再做一次火入れ，穩定流通品質。",
-    method: "裝瓶後出貨。第二次火入れ對應「出貨前」那一次加熱。侍酒與保存：生酒必須冷藏，開瓶後盡快喝完；已火入れ的普通瓶裝酒，開瓶前也宜避光、避熱。",
-    numbers: ["普通酒常見兩次火入れ：貯藏前＋出貨前。市售酒精分多約 15%–16%。"],
-    exam: "用「出貨／裝瓶時有沒有火入れ」來分三兄弟：生貯藏＝這時才加熱；生詰＝貯藏前加熱、這時不加熱；生酒＝這裡也不加熱。",
-    namazake: "生貯藏酒：出貨（裝瓶）時才火入れ。生詰酒：裝瓶時不火入れ。生酒：連這一次都沒有。標示生酒者，酒標須註明保存或飲用注意。"
+    purpose: "裝瓶出貨。若要做二次火入れ，也是在這一柱、出貨／裝瓶前加熱（約 60–65℃），同樣為了殺菌並使酵素失活。",
+    method: "通過二次火入れ的是一般酒與生貯藏酒；生詰酒與生酒從旁繞過、裝瓶時不再加熱。各線末端是不同顏色的成品瓶：一般酒較耐常溫流通，生酒必須冷藏，酒標須註明保存或飲用注意。已火入れ的瓶裝酒，開瓶前也宜避光、避熱。",
+    numbers: [
+      "二次火入れ同樣約 60–65℃。通過：一般酒、生貯藏酒。不經過：生詰酒、生酒。",
+      "市售酒精分多約 15%–16%。"
+    ],
+    exam: "用「出貨／裝瓶時有沒有火入れ」來分：生貯藏＝這時才加熱；生詰＝貯藏前加熱、這時不加熱；生酒／本生＝這裡也不加熱，須冷藏。一般酒則是兩次都做。",
+    namazake: "四條線的瓶子不要混：生酒是本生、全程未加熱；生詰已過一次火入れ但裝瓶不再加熱；生貯藏只在出貨時加熱；一般酒兩次都加熱。",
+    diagram: "routes"
   }
 ];
 
+const MAIN_COUNT = 8;
 const PITCH = 8.2;
-const ORIGIN = -((STATIONS.length - 1) * PITCH) / 2;
+const BRANCH_PITCH = 7.4;
+const BRANCH_SLOTS = 4;
+const MAIN_Z = 0;
+const LANE_Z = [4.05, 1.35, -1.35, -4.05];
+const FAN_LEN = 6.2;
+const BRANCH_TAIL = 5.4;
+const MAIN_SPAN = (MAIN_COUNT - 1) * PITCH;
+const BRANCH_SPAN = (BRANCH_SLOTS - 1) * BRANCH_PITCH + BRANCH_TAIL;
+const TOTAL = MAIN_SPAN + FAN_LEN + BRANCH_SPAN;
+const ORIGIN = -TOTAL / 2;
+const ROKA_X = ORIGIN + MAIN_SPAN;
+const BRANCH_X0 = ROKA_X + FAN_LEN;
+const MAIN_BELT_START = ORIGIN - 3.5;
+const MAIN_BELT_END = ROKA_X + 1.1;
+const MAIN_BELT_LEN = MAIN_BELT_END - MAIN_BELT_START;
+const LANE_BELT_END = BRANCH_X0 + BRANCH_SPAN;
+function branchX(slot) { return BRANCH_X0 + slot * BRANCH_PITCH; }
+
+const LANES = [
+  {
+    id: "ippan", name: "一般酒", short: "一般酒",
+    romaji: "ippan-shu／普通酒 futsū-shu（ふつうしゅ）",
+    color: 0xe0b25a, css: "#e0b25a", hiire1: true, hiire2: true, cold: false,
+    storage: "一次火入れ之後貯藏",
+    path: "一次火入れ（貯藏前）→ 貯藏 → 割水 → 二次火入れ（裝瓶前）→ 瓶詰",
+    bottleNote: "兩次加熱後較耐常溫流通。"
+  },
+  {
+    id: "namachozo", name: "生貯藏酒", short: "生貯藏酒",
+    romaji: "namachozō-shu（なまちょぞうしゅ）",
+    color: 0x3cb8a8, css: "#3cb8a8", hiire1: false, hiire2: true, cold: false,
+    storage: "生のまま貯藏（貯藏前不加熱）",
+    path: "不經一次火入れ → 生のまま貯藏 → 割水 → 只在裝瓶時二次火入れ → 瓶詰",
+    bottleNote: "出貨前才加熱，仍帶一點生酒的鮮度。"
+  },
+  {
+    id: "namazume", name: "生詰酒", short: "生詰酒",
+    romaji: "namazume-shu（なまづめしゅ）",
+    color: 0xe07a6a, css: "#e07a6a", hiire1: true, hiire2: false, cold: false,
+    storage: "一次火入れ之後貯藏",
+    path: "一次火入れ → 貯藏 → 割水 → 裝瓶時不再火入れ → 瓶詰",
+    bottleNote: "貯藏前已加熱，裝瓶時保持「生詰」。"
+  },
+  {
+    id: "namazake", name: "生酒（本生）", short: "生酒／本生",
+    romaji: "namazake（なまざけ）／hon-nama（ほんなま）",
+    color: 0x6aa8e0, css: "#6aa8e0", hiire1: false, hiire2: false, cold: true,
+    storage: "全程不加熱、低溫貯藏",
+    path: "完全不火入れ → 低溫貯藏 → 割水 → 瓶詰（須冷藏）",
+    bottleNote: "本生、一次都沒加熱，成品必須冷藏。"
+  }
+];
+
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1410);
-scene.fog = new THREE.Fog(0x1a1410, 28, 72);
+scene.fog = new THREE.Fog(0x1a1410, 40, 100);
 
 const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 200);
-camera.position.set(0, 9.5, 16);
+camera.position.set(2, 14, 24);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -264,9 +361,9 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 5;
-controls.maxDistance = 42;
+controls.maxDistance = 60;
 controls.maxPolarAngle = Math.PI * 0.48;
-controls.target.set(0, 1.6, 0);
+controls.target.set(2, 1.6, 0);
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
 const hemi = new THREE.HemisphereLight(0xfff1d6, 0x2a1c12, 0.75);
@@ -275,10 +372,10 @@ const key = new THREE.DirectionalLight(0xffe6b8, 1.15);
 key.position.set(8, 18, 10);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
-key.shadow.camera.left = -50;
-key.shadow.camera.right = 50;
-key.shadow.camera.top = 20;
-key.shadow.camera.bottom = -20;
+key.shadow.camera.left = -70;
+key.shadow.camera.right = 70;
+key.shadow.camera.top = 30;
+key.shadow.camera.bottom = -30;
 scene.add(key);
 scene.add(new THREE.AmbientLight(0x3a2a1c, 0.35));
 
@@ -325,26 +422,26 @@ function sphere(r, material, x=0, y=0, z=0) {
   return m;
 }
 
-const floor = box(STATIONS.length * PITCH + 16, 0.4, 18, mat.floor, 0, -0.2, 0);
+const floor = box(TOTAL + 20, 0.4, 24, mat.floor, 0, -0.2, 0);
 scene.add(floor);
-for (let i = 0; i < 8; i++) {
-  const beam = box(0.35, 5.2, 0.35, mat.darkWood, ORIGIN - 6 + i * ((STATIONS.length * PITCH + 12) / 7), 2.6, -6.2);
+for (let i = 0; i < 10; i++) {
+  const beam = box(0.35, 5.2, 0.35, mat.darkWood, ORIGIN - 4 + i * ((TOTAL + 10) / 9), 2.6, -8.6);
   scene.add(beam);
 }
-const backWall = box(STATIONS.length * PITCH + 16, 6, 0.3, mat.darkWood, 0, 3, -7);
+const backWall = box(TOTAL + 20, 6, 0.3, mat.darkWood, 0, 3, -9.2);
 backWall.material = mat.darkWood.clone();
 backWall.material.color = new THREE.Color(0x241810);
 scene.add(backWall);
 
 const conveyor = new THREE.Group();
-const beltLen = STATIONS.length * PITCH + 6;
-conveyor.add(box(beltLen, 0.18, 2.2, mat.belt, 0, 0.7, 2.2));
-conveyor.add(box(beltLen, 0.55, 0.16, mat.metal, 0, 0.55, 1.15));
-conveyor.add(box(beltLen, 0.55, 0.16, mat.metal, 0, 0.55, 3.25));
+const mainMid = (MAIN_BELT_START + MAIN_BELT_END) / 2;
+conveyor.add(box(MAIN_BELT_LEN, 0.18, 2.2, mat.belt, mainMid, 0.7, MAIN_Z));
+conveyor.add(box(MAIN_BELT_LEN, 0.55, 0.16, mat.metal, mainMid, 0.55, MAIN_Z - 1.05));
+conveyor.add(box(MAIN_BELT_LEN, 0.55, 0.16, mat.metal, mainMid, 0.55, MAIN_Z + 1.05));
 const slats = [];
-for (let i = 0; i < 28; i++) {
-  const slat = box(0.85, 0.06, 2.05, mat.slat, 0, 0.82, 2.2);
-  slat.userData.offset = i / 28;
+for (let i = 0; i < 20; i++) {
+  const slat = box(0.85, 0.06, 2.05, mat.slat, 0, 0.82, MAIN_Z);
+  slat.userData.offset = i / 20;
   slats.push(slat);
   conveyor.add(slat);
 }
@@ -352,16 +449,42 @@ scene.add(conveyor);
 
 const riceGeo = new THREE.SphereGeometry(0.055, 6, 5);
 riceGeo.scale(1, 0.7, 0.85);
-const riceMesh = new THREE.InstancedMesh(riceGeo, mat.rice, 220);
+const riceMesh = new THREE.InstancedMesh(riceGeo, mat.rice, 200);
 riceMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 scene.add(riceMesh);
 const riceDummy = new THREE.Object3D();
-const riceData = Array.from({ length: 220 }, (_, i) => ({
-  t: i / 220,
-  z: (Math.random() - 0.5) * 1.5,
+const riceData = Array.from({ length: 200 }, (_, i) => ({
+  t: i / 200,
+  lane: i % 4,
+  z: (Math.random() - 0.5) * 1.4,
   y: 0.95 + Math.random() * 0.06,
   spin: Math.random() * Math.PI
 }));
+const bottleGeo = new THREE.CylinderGeometry(0.12, 0.16, 0.55, 12);
+const bottleCapGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.14, 10);
+const bottleMeshes = LANES.map((L) => {
+  const m = new THREE.InstancedMesh(
+    bottleGeo,
+    new THREE.MeshStandardMaterial({ color: L.color, metalness: 0.22, roughness: 0.28, transparent: true, opacity: 0.82 }),
+    28
+  );
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(m);
+  return m;
+});
+const capMeshes = LANES.map((L) => {
+  const m = new THREE.InstancedMesh(
+    bottleCapGeo,
+    new THREE.MeshStandardMaterial({ color: L.cold ? 0xd8eefe : 0xc9cfd4, metalness: 0.5, roughness: 0.35 }),
+    28
+  );
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(m);
+  return m;
+});
+const PATH_LEN = MAIN_BELT_LEN + FAN_LEN + BRANCH_SPAN;
+const WORLD_SPEED = 1.35;
+const laneSlats = [];
 
 const clickables = [];
 const stationGroups = [];
@@ -478,27 +601,43 @@ function buildShubo(g) {
 }
 
 function buildMoromi(g) {
-  const tanks = [
-    { x: -1.25, label: "初添" },
-    { x: 0, label: "仲添" },
-    { x: 1.25, label: "留添" }
+  const wall = new THREE.MeshStandardMaterial({
+    color: 0xc9cfd4, metalness: 0.5, roughness: 0.28,
+    transparent: true, opacity: 0.28, side: THREE.DoubleSide
+  });
+  g.add(cyl(1.28, 1.38, 2.45, wall, 0, 1.42, -0.2));
+  g.add(cyl(1.32, 1.32, 0.12, mat.metal, 0, 2.62, -0.2));
+  g.add(box(2.2, 0.16, 2.2, mat.darkWood, 0, 0.18, -0.2));
+  const layers = [
+    { pct: 0.06, color: 0x6a4a1c },
+    { pct: 0.20, color: 0xa67c2e },
+    { pct: 0.30, color: 0xd0b25a },
+    { pct: 0.44, color: 0xefe3a8 }
   ];
-  tanks.forEach((t, i) => {
-    g.add(cyl(0.7, 0.78, 1.5 + i * 0.15, mat.tank, t.x, 1.05 + i * 0.07, -0.25));
-    g.add(cyl(0.55, 0.55, 0.45, mat.moromi, t.x, 1.0, -0.25));
-    for (let j = 0; j < 8; j++) {
-      const b = sphere(0.04, new THREE.MeshStandardMaterial({ color: 0xf2e4a8, transparent: true, opacity: 0.7 }), 0, 1, 0);
+  const fillH = 2.05;
+  let y0 = 0.28;
+  layers.forEach((layer) => {
+    const h = fillH * layer.pct;
+    const y = y0 + h / 2;
+    const matL = new THREE.MeshStandardMaterial({
+      color: layer.color, metalness: 0.05, roughness: 0.38,
+      transparent: true, opacity: 0.82
+    });
+    g.add(cyl(1.12, 1.12, h, matL, 0, y, -0.2));
+    const nBub = layer.pct > 0.1 ? 10 : 4;
+    for (let j = 0; j < nBub; j++) {
+      const b = sphere(0.045, new THREE.MeshStandardMaterial({ color: 0xf7efc4, transparent: true, opacity: 0.7 }), 0, 1, 0);
       b.userData.phase = Math.random() * Math.PI * 2;
-      b.userData.r = 0.12 + Math.random() * 0.35;
-      b.userData.baseY = 0.8;
-      b.userData.amp = 0.45;
-      b.userData.ox = t.x;
-      b.userData.oz = -0.25;
+      b.userData.r = 0.15 + Math.random() * 0.8;
+      b.userData.baseY = y0 + 0.04;
+      b.userData.amp = Math.max(0.08, h - 0.08);
+      b.userData.ox = 0;
+      b.userData.oz = -0.2;
       bubbles.push(b);
       g.add(b);
     }
+    y0 += h;
   });
-  g.add(box(3.6, 0.12, 0.2, mat.metal, 0, 0.28, 0.55));
 }
 
 function buildPress(g) {
@@ -590,6 +729,7 @@ const BUILDERS = {
 };
 
 STATIONS.forEach((st, i) => {
+  if (i >= MAIN_COUNT) return;
   const g = new THREE.Group();
   g.position.set(ORIGIN + i * PITCH, 0, 0);
   g.userData.index = i;
@@ -608,8 +748,174 @@ STATIONS.forEach((st, i) => {
   scene.add(g);
   stationGroups.push(g);
   addLabel(g, `${i + 1}. ${st.name}`);
-  lamp(ORIGIN + i * PITCH, 1.2);
+  lamp(ORIGIN + i * PITCH, 0);
 });
+
+const laneGroups = [];
+const columnRings = [[], [], [], []];
+let selectedLane = -1;
+
+function colorMat(color, extra = {}) {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.25, ...extra });
+}
+
+function compactPasteur(g) {
+  g.add(box(1.7, 0.7, 0.7, mat.heat, 0, 0.95, 0));
+  g.add(cyl(0.14, 0.14, 1.5, mat.copper, -0.45, 1.4, 0));
+  g.add(cyl(0.14, 0.14, 1.5, mat.copper, 0.45, 1.4, 0));
+  for (let i = 0; i < 6; i++) {
+    const puff = sphere(0.11, mat.steam.clone(), (i - 2.5) * 0.22, 1.55, 0);
+    puff.userData.phase = i * 0.5;
+    steamPuffs.push(puff);
+    g.add(puff);
+  }
+}
+
+function skipGate(g, color) {
+  const m = colorMat(color);
+  g.add(box(0.1, 1.7, 0.1, mat.metal, -0.7, 1.05, 0));
+  g.add(box(0.1, 1.7, 0.1, mat.metal, 0.7, 1.05, 0));
+  g.add(box(1.6, 0.1, 0.1, m, 0, 1.9, 0));
+  g.add(box(1.4, 0.08, 1.4, new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.18 }), 0, 0.2, 0));
+}
+
+function compactStorage(g, cold) {
+  const tank = cold
+    ? new THREE.MeshStandardMaterial({ color: 0x8ec5e8, metalness: 0.45, roughness: 0.28, emissive: 0x163044, emissiveIntensity: 0.25 })
+    : mat.tank;
+  g.add(cyl(0.62, 0.62, 1.9, tank, 0, 1.15, 0));
+  g.add(cyl(0.18, 0.18, 0.18, mat.metal, 0, 2.2, 0));
+  if (cold) {
+    for (let i = 0; i < 6; i++) {
+      const fl = sphere(0.06, new THREE.MeshStandardMaterial({ color: 0xe8f6ff, transparent: true, opacity: 0.45, depthWrite: false }), (Math.random() - 0.5) * 0.7, 1.4 + Math.random() * 0.8, (Math.random() - 0.5) * 0.7);
+      fl.userData.phase = i;
+      steamPuffs.push(fl);
+      g.add(fl);
+    }
+  }
+}
+
+function compactWarimizu(g) {
+  g.add(cyl(0.55, 0.6, 1.3, mat.tank, -0.35, 0.95, 0));
+  g.add(cyl(0.35, 0.35, 0.9, mat.tank, 0.55, 0.75, 0));
+  g.add(box(0.1, 0.1, 0.7, mat.metal, 0.1, 1.55, 0));
+}
+
+function displayBottles(g, lane) {
+  const L = LANES[lane];
+  const glass = colorMat(L.color, { transparent: true, opacity: 0.8, roughness: 0.25, metalness: 0.2 });
+  if (L.cold) {
+    g.add(box(2.2, 1.5, 1.1, new THREE.MeshStandardMaterial({ color: 0x9fd2f0, transparent: true, opacity: 0.18, metalness: 0.2, roughness: 0.2 }), 0.15, 1.15, 0));
+  }
+  g.add(box(2.0, 0.14, 0.8, mat.metal, 0, 0.62, 0));
+  for (let i = 0; i < 5; i++) {
+    const btl = cyl(0.11, 0.15, 0.52, glass, -0.8 + i * 0.4, 1.0, 0);
+    btl.userData.bob = true;
+    btl.userData.phase = i * 0.7 + lane;
+    bobbers.push(btl);
+    g.add(btl);
+    g.add(cyl(0.055, 0.06, 0.14, mat.metal, -0.8 + i * 0.4, 1.32, 0));
+  }
+}
+
+function makeLaneBelt(z, color) {
+  const mid = (BRANCH_X0 + LANE_BELT_END) / 2;
+  const len = LANE_BELT_END - BRANCH_X0 + 0.6;
+  const g = new THREE.Group();
+  g.add(box(len, 0.12, 1.35, new THREE.MeshStandardMaterial({ color: 0x2c241c, roughness: 0.7 }), mid, 0.68, z));
+  g.add(box(len, 0.08, 0.08, colorMat(color), mid, 0.74, z - 0.64));
+  g.add(box(len, 0.08, 0.08, colorMat(color), mid, 0.74, z + 0.64));
+  for (let i = 0; i < 10; i++) {
+    const slat = box(0.6, 0.05, 1.2, mat.slat, 0, 0.76, z);
+    slat.userData.offset = i / 10;
+    slat.userData.laneZ = z;
+    slat.userData.kind = "lane";
+    laneSlats.push(slat);
+    g.add(slat);
+  }
+  scene.add(g);
+}
+
+function addFanBelt(z, color) {
+  const dx = BRANCH_X0 - ROKA_X;
+  const dz = z - MAIN_Z;
+  const len = Math.hypot(dx, dz);
+  const g = new THREE.Group();
+  const b = box(len, 0.12, 0.7, new THREE.MeshStandardMaterial({ color: 0x2a221a, roughness: 0.7 }), 0, 0.68, 0);
+  g.add(b);
+  g.add(box(len, 0.06, 0.07, colorMat(color), 0, 0.75, -0.32));
+  g.add(box(len, 0.06, 0.07, colorMat(color), 0, 0.75, 0.32));
+  g.position.set((ROKA_X + BRANCH_X0) / 2, 0, (MAIN_Z + z) / 2);
+  g.rotation.y = -Math.atan2(dz, dx);
+  scene.add(g);
+}
+
+function addClickHit(parent, w, h, d, x, y, z, data) {
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ visible: false }));
+  hit.position.set(x, y, z);
+  Object.assign(hit.userData, data);
+  parent.add(hit);
+  clickables.push(hit);
+}
+
+function buildBranchYard() {
+  LANES.forEach((L, li) => {
+    addFanBelt(LANE_Z[li], L.color);
+    makeLaneBelt(LANE_Z[li], L.color);
+    const lg = new THREE.Group();
+    lg.position.set(0, 0, LANE_Z[li]);
+    lg.userData.lane = li;
+
+    const modules = [
+      { slot: 0, build: L.hiire1 ? compactPasteur : (g) => skipGate(g, L.color), index: 8, role: L.hiire1 ? "hiire1" : "skip1" },
+      { slot: 1, build: (g) => compactStorage(g, L.cold), index: 9, role: "chozo" },
+      { slot: 2, build: compactWarimizu, index: 10, role: "warimizu" },
+      { slot: 3, build: (g) => { if (L.hiire2) compactPasteur(g); displayBottles(g, li); }, index: 11, role: L.hiire2 ? "hiire2" : "skip2" }
+    ];
+    modules.forEach((mod) => {
+      const mg = new THREE.Group();
+      mg.position.set(branchX(mod.slot), 0, 0);
+      mod.build(mg);
+      const ring = highlightRing();
+      ring.scale.setScalar(0.7);
+      mg.add(ring);
+      columnRings[mod.slot].push(ring);
+      addClickHit(mg, 2.6, 2.6, 2.0, 0, 1.3, 0, { index: mod.index, lane: li, role: mod.role, kind: "module" });
+      lg.add(mg);
+    });
+
+    const sign = new THREE.Group();
+    sign.position.set(BRANCH_X0 - 1.6, 0, 0);
+    const plate = box(0.08, 0.7, 1.8, colorMat(L.color), 0, 1.6, 0);
+    sign.add(plate);
+    addClickHit(sign, 1.2, 2.2, 2.2, 0, 1.4, 0, { kind: "lane", lane: li });
+    lg.add(sign);
+    addLabel(sign, `${L.short}`);
+    labelNodes[labelNodes.length - 1].el.style.borderColor = L.css;
+    scene.add(lg);
+    laneGroups.push(lg);
+    lamp(branchX(1), LANE_Z[li]);
+  });
+
+  ["一次火入れ", "貯藏", "割水", "二次火入れ・瓶詰"].forEach((name, slot) => {
+    const g = new THREE.Group();
+    g.position.set(branchX(slot), 0, 0);
+    g.userData.index = MAIN_COUNT + slot;
+    g.userData.id = STATIONS[MAIN_COUNT + slot].id;
+    const ring = highlightRing();
+    ring.scale.setScalar(2.2);
+    g.add(ring);
+    g.userData.ring = ring;
+    addLabel(g, `${MAIN_COUNT + slot + 1}. ${name}`);
+    scene.add(g);
+    stationGroups.push(g);
+    lamp(branchX(slot), 0);
+  });
+}
+
+
+buildBranchYard();
+
 
 const camFrom = new THREE.Vector3();
 const camTo = new THREE.Vector3();
@@ -625,23 +931,128 @@ function easeInOutCubic(t) {
 }
 
 function stationCamera(i) {
-  const x = ORIGIN + i * PITCH;
-  return { pos: new THREE.Vector3(x + 0.4, 5.6, 8.6), target: new THREE.Vector3(x, 1.4, -0.2) };
+  if (i < MAIN_COUNT) {
+    const x = ORIGIN + i * PITCH;
+    return { pos: new THREE.Vector3(x + 0.4, 5.6, 8.6), target: new THREE.Vector3(x, 1.4, 0) };
+  }
+  const x = branchX(i - MAIN_COUNT);
+  return { pos: new THREE.Vector3(x + 0.4, 9.2, 16.5), target: new THREE.Vector3(x, 1.3, 0) };
 }
 
-function moveCameraTo(i, duration = 1.15) {
+function laneCamera(li) {
+  const mid = BRANCH_X0 + BRANCH_SPAN * 0.42;
+  return { pos: new THREE.Vector3(mid - 0.6, 5.4, LANE_Z[li] + 7.4), target: new THREE.Vector3(mid, 1.2, LANE_Z[li]) };
+}
+
+function tweenCamera(pos, target, duration = 1.15) {
   camFrom.copy(camera.position);
   tgtFrom.copy(controls.target);
-  const v = stationCamera(i);
-  camTo.copy(v.pos);
-  tgtTo.copy(v.target);
+  camTo.copy(pos);
+  tgtTo.copy(target);
   camTween = { t: 0, dur: duration };
 }
 
-function renderPanel(i) {
+function moveCameraTo(i, duration = 1.15) {
+  const v = stationCamera(i);
+  tweenCamera(v.pos, v.target, duration);
+}
+
+
+function sandanTankSvg() {
+  return `<div class="block diagram">
+    <h3>三段仕入作業原料投入的比例（酒研講義）</h3>
+    <svg viewBox="0 0 360 268" role="img" aria-label="由槽底向上：酒母約6%、初添約20%、仲添約30%、留添約44%">
+      <rect x="18" y="10" width="130" height="236" rx="18" fill="#2a1c14" stroke="#e0b25a" stroke-width="2"/>
+      <rect x="24" y="200.24" width="118" height="13.2" fill="#6a4a1c"/>
+      <rect x="24" y="156.24" width="118" height="44" fill="#a67c2e"/>
+      <rect x="24" y="90.24" width="118" height="66" fill="#d0b25a"/>
+      <rect x="24" y="16.24" width="118" height="96.8" fill="#efe3a8"/>
+      <line x1="148" y1="206.8" x2="168" y2="206.8" stroke="#c4b8a8" stroke-width="1"/>
+      <line x1="148" y1="178.2" x2="168" y2="178.2" stroke="#c4b8a8" stroke-width="1"/>
+      <line x1="148" y1="123.2" x2="168" y2="123.2" stroke="#c4b8a8" stroke-width="1"/>
+      <line x1="148" y1="64.6" x2="168" y2="64.6" stroke="#c4b8a8" stroke-width="1"/>
+      <text x="172" y="202" fill="#f4efe6" font-size="10" font-weight="700">酒母 shubo／moto　約 6%</text>
+      <text x="172" y="214" fill="#c4b8a8" font-size="9">第 1 日先投入（槽底）</text>
+      <text x="172" y="172" fill="#f4efe6" font-size="10" font-weight="700">初添 hatsuzoe　約 20%</text>
+      <text x="172" y="184" fill="#c4b8a8" font-size="9">第 1 日　麴：蒸米＝2：3，加水</text>
+      <text x="172" y="117" fill="#1a1410" font-size="10" font-weight="700">仲添 nakazoe　約 30%</text>
+      <text x="172" y="129" fill="#c4b8a8" font-size="9">第 3 日　麴：蒸米＝1：2，加水</text>
+      <text x="172" y="58" fill="#1a1410" font-size="10" font-weight="700">留添 tomezoe　約 44%</text>
+      <text x="172" y="70" fill="#c4b8a8" font-size="9">第 4 日　麴：蒸米＝1：5，加水</text>
+      <text x="22" y="262" fill="#e0b25a" font-size="10">踊り odori：第 2 日休息，不投料</text>
+    </svg>
+    <p class="cap">數字為量估整體量，由槽底向上堆疊；請以酒研講義為準。</p>
+  </div>`;
+}
+
+function josoStageSvg() {
+  return `<div class="block diagram">
+    <h3>上槽取酒的前、中、後段（酒研講義）</h3>
+    <svg viewBox="0 0 360 92" role="img" aria-label="荒走、中取、責め三段">
+      <rect x="8" y="10" width="108" height="50" rx="8" fill="#cbb58a"/>
+      <rect x="126" y="10" width="108" height="50" rx="8" fill="#e0b25a"/>
+      <rect x="244" y="10" width="108" height="50" rx="8" fill="#8a5a2a"/>
+      <text x="62" y="30" text-anchor="middle" fill="#1a1410" font-size="11" font-weight="700">荒走 arabashiri</text>
+      <text x="62" y="46" text-anchor="middle" fill="#1a1410" font-size="9">前段・較濁、微氣泡</text>
+      <text x="180" y="30" text-anchor="middle" fill="#1a1410" font-size="11" font-weight="700">中取 nakadori</text>
+      <text x="180" y="46" text-anchor="middle" fill="#1a1410" font-size="9">中段・香氣最好、最均衡</text>
+      <text x="298" y="30" text-anchor="middle" fill="#f4efe6" font-size="11" font-weight="700">責め seme</text>
+      <text x="298" y="46" text-anchor="middle" fill="#f4efe6" font-size="9">後段・酸苦澀較重</text>
+      <text x="8" y="80" fill="#c4b8a8" font-size="10">講義亦見「責苦」。雫酒則來自袋吊，不是這三段的名稱。</text>
+    </svg>
+  </div>`;
+}
+
+function routesSvg(hiLane = -1, hiCol = -1) {
+  const cols = ["①火入れ", "貯藏", "割水", "②火入れ", "瓶詰"];
+  const rowH = 44;
+  const h = 28 + LANES.length * rowH;
+  const rows = LANES.map((L, i) => {
+    const y = 24 + i * rowH;
+    const cells = [
+      { on: L.hiire1, label: L.hiire1 ? "一次" : "繞道", col: 0 },
+      { on: true, label: L.cold ? "低溫貯藏" : (L.hiire1 ? "貯藏" : "生のまま"), col: 1 },
+      { on: true, label: "割水", col: 2 },
+      { on: L.hiire2, label: L.hiire2 ? "二次" : "繞道", col: 3 },
+      { on: true, label: "瓶", col: 4 }
+    ];
+    const rowHi = hiLane === i;
+    const cellRects = cells.map((c, ci) => {
+      const x = 92 + ci * 52;
+      const fill = !c.on ? "#2a1c14" : (rowHi || hiCol === c.col ? L.css : `${L.css}bb`);
+      const stroke = (rowHi || hiCol === c.col) ? "#f4efe6" : "#6a5a48";
+      const dash = c.on ? "" : ` stroke-dasharray="3 2"`;
+      const ink = c.on ? "#1a1410" : "#c4b8a8";
+      return `<rect x="${x}" y="${y}" width="48" height="32" rx="6" fill="${fill}" stroke="${stroke}"${dash}/>
+        <text x="${x + 24}" y="${y + 20}" text-anchor="middle" fill="${ink}" font-size="8" font-weight="700">${c.label}</text>`;
+    }).join("");
+    return `<rect x="4" y="${y}" width="84" height="32" rx="6" fill="${rowHi ? L.css : "#2a1c14"}" stroke="${L.css}"/>
+      <text x="46" y="${y + 20}" text-anchor="middle" fill="${rowHi ? "#1a1410" : "#f4efe6"}" font-size="9" font-weight="700">${L.short}</text>
+      ${cellRects}`;
+  }).join("");
+  const heads = cols.map((c, ci) => `<text x="${116 + ci * 52}" y="16" text-anchor="middle" fill="#c4b8a8" font-size="8">${c}</text>`).join("");
+  return `<div class="block diagram">
+    <h3>濾過之後的四條火入れ路線</h3>
+    <svg viewBox="0 0 360 ${h}" role="img" aria-label="一般酒、生貯藏酒、生詰酒、生酒的火入れ分流">
+      ${heads}${rows}
+    </svg>
+    <p class="cap">火入れ約 60–65℃，目的是殺菌並使酵素失活。生酒（本生）全程不加熱，成品須冷藏。</p>
+  </div>`;
+}
+
+function pickDiagram(st, lane, col) {
+  if (st.diagram === "sandan") return sandanTankSvg();
+  if (st.diagram === "joso") return josoStageSvg();
+  if (st.diagram === "routes") return routesSvg(lane, col);
+  return "";
+}
+
+function renderPanel(i, laneHint = -1) {
   const st = STATIONS[i];
   const nums = st.numbers.map((n) => `<li>${n}</li>`).join("");
   const nama = st.namazake ? `<div class="block"><h3>與生酒／生貯藏／生詰的關係</h3><p>${st.namazake}</p></div>` : "";
+  const col = i >= MAIN_COUNT ? i - MAIN_COUNT : -1;
+  const diagram = pickDiagram(st, laneHint, col);
   document.getElementById("panelBody").innerHTML = `
     <div class="kicker">步驟 ${i + 1}／${STATIONS.length}</div>
     <h2>${st.name}</h2>
@@ -649,13 +1060,30 @@ function renderPanel(i) {
     <div class="block"><h3>目的</h3><p>${st.purpose}</p></div>
     <div class="block"><h3>怎麼做</h3><p>${st.method}</p></div>
     <div class="block"><h3>關鍵數字與定義</h3><ul>${nums}</ul></div>
+    ${diagram}
     <div class="block exam"><h3>酒研填充題提點</h3><p>${st.exam}</p></div>
     ${nama}
   `;
 }
 
+function renderLanePanel(li) {
+  const L = LANES[li];
+  const h1 = L.hiire1 ? "會經過一次火入れ（貯藏前，約 60–65℃）" : "不經一次火入れ，從旁繞道";
+  const h2 = L.hiire2 ? "會經過二次火入れ（裝瓶前，約 60–65℃）" : "裝瓶時不再火入れ";
+  document.getElementById("panelBody").innerHTML = `
+    <div class="kicker">火入れ分流 ${li + 1}／${LANES.length}</div>
+    <h2>${L.name}</h2>
+    <p class="romaji">${L.romaji}</p>
+    <div class="block"><h3>這條路線怎麼走</h3><p>${L.path}。貯藏段：${L.storage}。末端瓶子：${L.bottleNote}</p></div>
+    <div class="block"><h3>兩次火入れ過不過？</h3><ul><li>一次火入れ：${h1}</li><li>二次火入れ：${h2}</li></ul></div>
+    ${routesSvg(li, -1)}
+    <div class="block exam"><h3>酒研填充題提點</h3><p>口訣看「火入れ做了幾次、在哪一步做」。一般酒兩次都做；生貯藏酒只做裝瓶前那一次；生詰酒只做貯藏前那一次；生酒／本生一次都不做，須冷藏。火入れ約 60–65℃，為殺菌並使酵素失活。</p></div>
+  `;
+}
+
 const panel = document.getElementById("panel");
 const stepNav = document.getElementById("stepNav");
+const laneNav = document.getElementById("laneNav");
 
 STATIONS.forEach((st, i) => {
   const b = document.createElement("button");
@@ -664,29 +1092,73 @@ STATIONS.forEach((st, i) => {
   b.addEventListener("click", () => selectStation(i, true));
   stepNav.appendChild(b);
 });
+LANES.forEach((L, li) => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = L.short;
+  b.style.setProperty("--lane", L.css);
+  b.addEventListener("click", () => selectLane(li, true));
+  laneNav.appendChild(b);
+});
 
-function setNavCurrent(i) {
-  [...stepNav.children].forEach((el, idx) => el.setAttribute("aria-current", idx === i ? "true" : "false"));
-  const cur = stepNav.children[i];
+function setNavCurrent(i, lane = -1) {
+  [...stepNav.children].forEach((el, idx) => el.setAttribute("aria-current", lane < 0 && idx === i ? "true" : "false"));
+  [...laneNav.children].forEach((el, idx) => el.setAttribute("aria-current", idx === lane ? "true" : "false"));
+  const cur = lane >= 0 ? laneNav.children[lane] : stepNav.children[i];
   if (cur) cur.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
 }
 
-function selectStation(i, open = true) {
+function setHighlights(stationIdx, laneIdx) {
+  stationGroups.forEach((g, idx) => {
+    const ring = g.userData.ring;
+    if (!ring) return;
+    const on = laneIdx < 0 && idx === stationIdx;
+    ring.material.opacity = on ? 0.95 : 0;
+  });
+  columnRings.forEach((arr, slot) => {
+    arr.forEach((ring, li) => {
+      const on = (laneIdx < 0 && stationIdx === MAIN_COUNT + slot) || laneIdx === li;
+      ring.material.opacity = on ? 0.95 : 0;
+    });
+  });
+}
+
+function openPanel() {
+  panel.classList.add("open");
+  panel.setAttribute("aria-hidden", "false");
+}
+
+function selectStation(i, open = true, laneHint = -1) {
   if (i < 0) i = STATIONS.length - 1;
   if (i >= STATIONS.length) i = 0;
   selected = i;
-  stationGroups.forEach((g, idx) => {
-    const ring = g.userData.ring;
-    ring.material.opacity = idx === i ? 0.95 : 0;
-    ring.scale.setScalar(idx === i ? 1 : 0.8);
+  selectedLane = -1;
+  setHighlights(i, -1);
+  labelNodes.forEach((n) => {
+    n.el.classList.toggle("active", stationGroups.indexOf(n.group) === i);
   });
-  labelNodes.forEach((n, idx) => n.el.classList.toggle("active", idx === i));
-  setNavCurrent(i);
+  setNavCurrent(i, -1);
   moveCameraTo(i);
   if (open) {
-    renderPanel(i);
-    panel.classList.add("open");
-    panel.setAttribute("aria-hidden", "false");
+    renderPanel(i, laneHint);
+    openPanel();
+  }
+  tourTimer = 0;
+}
+
+function selectLane(li, open = true) {
+  if (li < 0) li = LANES.length - 1;
+  if (li >= LANES.length) li = 0;
+  selected = MAIN_COUNT;
+  selectedLane = li;
+  setHighlights(-1, li);
+  labelNodes.forEach((n) => n.el.classList.toggle("active", n.el.textContent === LANES[li].short));
+  setNavCurrent(-1, li);
+  const v = laneCamera(li);
+  tweenCamera(v.pos, v.target);
+  if (open) {
+    renderLanePanel(li);
+    openPanel();
   }
   tourTimer = 0;
 }
@@ -753,7 +1225,9 @@ function onPointerUp(ev) {
   if (hits.length) {
     touring = false;
     syncTourBtn();
-    selectStation(hits[0].object.userData.index, true);
+    const ud = hits[0].object.userData;
+    if (ud.kind === "lane") selectLane(ud.lane, true);
+    else selectStation(ud.index, true, ud.lane ?? -1);
   }
 }
 renderer.domElement.addEventListener("pointerdown", onPointerDown);
@@ -766,6 +1240,20 @@ window.addEventListener("resize", () => {
 });
 
 const clock = new THREE.Clock();
+const BELT_BASE = 0.04 / 3;
+let beltMul = 0.5;
+let beltPos = 0;
+function setBeltSpeed(mul) {
+  beltMul = mul;
+  document.querySelectorAll(".dock .speed button").forEach((b) => {
+    b.setAttribute("aria-pressed", Number(b.dataset.speed) === mul ? "true" : "false");
+  });
+}
+document.querySelectorAll(".dock .speed button").forEach((b) => {
+  b.addEventListener("click", () => setBeltSpeed(Number(b.dataset.speed)));
+});
+window.__setBeltSpeed = setBeltSpeed;
+
 const tmpV = new THREE.Vector3();
 
 function animate() {
@@ -779,29 +1267,89 @@ function animate() {
     camera.position.lerpVectors(camFrom, camTo, k);
     controls.target.lerpVectors(tgtFrom, tgtTo, k);
     if (camTween.t >= camTween.dur) camTween = null;
-  } else if (touring && selected >= 0) {
+  } else if (touring && (selected >= 0 || selectedLane >= 0)) {
     tourTimer += dt;
     if (tourTimer > 7) {
       tourTimer = 0;
-      selectStation(selected + 1, true);
+      if (selectedLane >= 0) {
+        if (selectedLane < LANES.length - 1) selectLane(selectedLane + 1, true);
+        else selectStation(0, true);
+      } else if (selected === STATIONS.length - 1) {
+        selectLane(0, true);
+      } else {
+        selectStation(selected + 1, true);
+      }
     }
   }
 
   controls.update();
 
+  beltPos += dt * WORLD_SPEED * beltMul;
   slats.forEach((s) => {
-    const u = (s.userData.offset + t * 0.04) % 1;
-    s.position.x = -beltLen / 2 + u * beltLen;
+    const u = (s.userData.offset + beltPos / MAIN_BELT_LEN) % 1;
+    s.position.x = MAIN_BELT_START + u * MAIN_BELT_LEN;
+  });
+  laneSlats.forEach((s) => {
+    const span = LANE_BELT_END - BRANCH_X0;
+    const u = (s.userData.offset + beltPos / span) % 1;
+    s.position.x = BRANCH_X0 + u * span;
   });
 
+  const bottleCutoff = BRANCH_X0 + BRANCH_PITCH * 2.55;
+  const hide = new THREE.Matrix4().makeScale(0, 0, 0);
+  const bottleCounts = [0, 0, 0, 0];
   riceData.forEach((r, i) => {
-    const u = (r.t + t * 0.04) % 1;
-    riceDummy.position.set(-beltLen / 2 + u * beltLen, r.y + Math.sin(t * 3 + i) * 0.01, 2.2 + r.z);
-    riceDummy.rotation.set(t + r.spin, t * 0.7, 0);
-    riceDummy.updateMatrix();
-    riceMesh.setMatrixAt(i, riceDummy.matrix);
+    const dist = (r.t * PATH_LEN + beltPos) % PATH_LEN;
+    let x, y, z;
+    if (dist < MAIN_BELT_LEN) {
+      const k = dist / MAIN_BELT_LEN;
+      x = MAIN_BELT_START + k * MAIN_BELT_LEN;
+      y = r.y;
+      z = MAIN_Z + r.z;
+    } else if (dist < MAIN_BELT_LEN + FAN_LEN) {
+      const k = (dist - MAIN_BELT_LEN) / FAN_LEN;
+      x = ROKA_X + k * (BRANCH_X0 - ROKA_X);
+      y = r.y;
+      z = MAIN_Z * (1 - k) + LANE_Z[r.lane] * k + r.z * (1 - k * 0.7);
+    } else {
+      const k = dist - MAIN_BELT_LEN - FAN_LEN;
+      x = BRANCH_X0 + k;
+      y = r.y;
+      z = LANE_Z[r.lane] + r.z * 0.3;
+    }
+    const asBottle = dist > MAIN_BELT_LEN + FAN_LEN && x > bottleCutoff;
+    if (asBottle) {
+      riceDummy.position.set(0, -10, 0);
+      riceDummy.scale.set(0, 0, 0);
+      riceDummy.updateMatrix();
+      riceMesh.setMatrixAt(i, riceDummy.matrix);
+      const bi = bottleCounts[r.lane]++;
+      if (bi < 28) {
+        riceDummy.scale.set(1, 1, 1);
+        riceDummy.position.set(x, 1.05 + Math.sin(t * 2 + i) * 0.03, z);
+        riceDummy.rotation.set(0, 0, 0);
+        riceDummy.updateMatrix();
+        bottleMeshes[r.lane].setMatrixAt(bi, riceDummy.matrix);
+        riceDummy.position.y += 0.34;
+        riceDummy.updateMatrix();
+        capMeshes[r.lane].setMatrixAt(bi, riceDummy.matrix);
+      }
+    } else {
+      riceDummy.scale.set(1, 1, 1);
+      riceDummy.position.set(x, y + Math.sin(t * 3 + i) * 0.01, z);
+      riceDummy.rotation.set(t + r.spin, t * 0.7, 0);
+      riceDummy.updateMatrix();
+      riceMesh.setMatrixAt(i, riceDummy.matrix);
+    }
   });
   riceMesh.instanceMatrix.needsUpdate = true;
+  bottleMeshes.forEach((m, li) => {
+    for (let k = bottleCounts[li]; k < 28; k++) m.setMatrixAt(k, hide);
+    m.instanceMatrix.needsUpdate = true;
+    const caps = capMeshes[li];
+    for (let k = bottleCounts[li]; k < 28; k++) caps.setMatrixAt(k, hide);
+    caps.instanceMatrix.needsUpdate = true;
+  });
 
   steamPuffs.forEach((p, i) => {
     const ph = t * 0.7 + p.userData.phase;
@@ -854,7 +1402,9 @@ setTimeout(() => document.getElementById("loading").remove(), 600);
 
 window.__SAKE_READY = true;
 window.__selectStation = (i) => selectStation(i, true);
+window.__selectLane = (i) => selectLane(i, true);
 window.__stations = STATIONS.map((s) => s.id);
+window.__lanes = LANES.map((s) => s.id);
 
   </script>
 </body>

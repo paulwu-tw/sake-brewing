@@ -225,12 +225,12 @@ const STATIONS = [
   {
     id: "joso", name: "上槽", romaji: "jōsō（じょうそう）", short: "上槽",
     purpose: "把發酵完成的醪分成兩部分：液體是酒，固體是酒粕（sake kasu）。",
-    method: "常見有三種做法。槽搾（fune-shibori）是傳統法：把醪裝進酒袋，層層疊進稱為槽（fune）的箱裡再加壓。自然垂滴法（shizen-suiteki-hō）不靠機械加壓，只把裝袋的醪懸掛起來，讓酒靠自身重量慢慢滴下；這種懸掛叫袋吊（fukuro-tsuri），滴下來的酒叫雫酒（shizuku-zake），若用一斗瓶接著收集，稱斗瓶圍（tobin-gakoi，講義用字為「圍」）。目前最普遍的是手風琴式壓搾，也就是藪田式（yabuta）自動壓搾機。用目較粗的布濾過、呈白濁者稱にごり酒（nigorizake）；未火入れ者有時稱活性酒（kassei-shu）。",
+    method: "常見有三種做法。槽搾（fune-shibori）是傳統法：把醪裝進酒袋，層層疊進稱為槽（fune）的箱裡再加壓。自然垂滴法（shizen-suiteki-hō）不靠機械加壓，只把裝袋的醪懸掛起來，讓酒靠自身重量慢慢滴下；這種懸掛叫袋吊（fukuro-tsuri），滴下來的酒叫雫酒（shizuku-zake），若用一斗瓶接著收集，稱斗瓶圍（tobin-gakoi，講義用字為「圍」）。目前最普遍的是手風琴式壓搾，也就是藪田式（yabuta）自動壓搾機。用目較粗的布濾過、呈白濁者稱濁酒（にごり酒，nigorizake）；未火入れ者有時稱活性酒（kassei-shu）。",
     numbers: [
       "壓出的酒依前、中、後段風味不同：荒走（arabashiri，前段）較濁、帶一點微氣泡；中取（nakadori，中段）香氣最好、也最均衡；責め（seme，後段；講義亦見「責苦」）酸、苦、澀較重。",
       "上槽本身沒有像精米步合那樣的法定百分比；重點是分出酒與酒粕，並分清三種做法與三段取酒名稱。"
     ],
-    exam: "填充題必背：上槽＝分出酒與酒粕。三種做法（槽搾、自然垂滴法、手風琴式壓搾）、袋吊／雫酒／斗瓶圍，以及荒走、中取、責め的順序與特徵。にごり酒仍要能說出「用較粗的布濾過醪，呈白濁」。",
+    exam: "填充題必背：上槽＝分出酒與酒粕。三種做法（槽搾、自然垂滴法、手風琴式壓搾）、袋吊／雫酒／斗瓶圍，以及荒走、中取、責め的順序與特徵。濁酒（にごり酒）仍要能說出「用較粗的布濾過醪，呈白濁」。",
     namazake: "",
     diagram: "joso"
   },
@@ -447,19 +447,7 @@ for (let i = 0; i < 20; i++) {
 }
 scene.add(conveyor);
 
-const riceGeo = new THREE.SphereGeometry(0.055, 6, 5);
-riceGeo.scale(1, 0.7, 0.85);
-const riceMesh = new THREE.InstancedMesh(riceGeo, mat.rice, 200);
-riceMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(riceMesh);
 const riceDummy = new THREE.Object3D();
-const riceData = Array.from({ length: 200 }, (_, i) => ({
-  t: i / 200,
-  lane: i % 4,
-  z: (Math.random() - 0.5) * 1.4,
-  y: 0.95 + Math.random() * 0.06,
-  spin: Math.random() * Math.PI
-}));
 const bottleGeo = new THREE.CylinderGeometry(0.12, 0.16, 0.55, 12);
 const bottleCapGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.14, 10);
 const bottleMeshes = LANES.map((L) => {
@@ -493,6 +481,308 @@ const labelNodes = [];
 const steamPuffs = [];
 const bubbles = [];
 const bobbers = [];
+
+const matCargo = {
+  genmai: new THREE.MeshStandardMaterial({ color: 0x6b4424, roughness: 0.88 }),
+  hakumai: new THREE.MeshStandardMaterial({ color: 0xf4ead4, roughness: 0.72 }),
+  wet: new THREE.MeshStandardMaterial({ color: 0xd5e2e8, roughness: 0.28, metalness: 0.18 }),
+  steamed: new THREE.MeshStandardMaterial({ color: 0xfff6e0, roughness: 0.55 }),
+  koji: new THREE.MeshStandardMaterial({ color: 0xfffce8, roughness: 0.9 }),
+  kojiFuzz: new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.38, roughness: 1, depthWrite: false }),
+  shuboShell: new THREE.MeshStandardMaterial({ color: 0xc5ccd1, metalness: 0.45, roughness: 0.32 }),
+  shuboLiq: new THREE.MeshStandardMaterial({ color: 0xc4a85a, roughness: 0.35, transparent: true, opacity: 0.85 }),
+  tub: new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 0.8 }),
+  moromiLiq: new THREE.MeshStandardMaterial({ color: 0xd8c27a, roughness: 0.32, transparent: true, opacity: 0.85 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0xdceef2, metalness: 0.2, roughness: 0.12, transparent: true, opacity: 0.38 }),
+  sakeLiq: new THREE.MeshStandardMaterial({ color: 0xf3ebb0, roughness: 0.25, transparent: true, opacity: 0.7 }),
+  kasu: new THREE.MeshStandardMaterial({ color: 0xddd0b0, roughness: 0.9 }),
+  steam: new THREE.MeshStandardMaterial({ color: 0xf5f0e6, transparent: true, opacity: 0.22, depthWrite: false })
+};
+const CARGO_N = 52;
+function pileGeo() {
+  const g = new THREE.SphereGeometry(0.17, 8, 6);
+  g.scale(1.25, 0.58, 1.05);
+  return g;
+}
+function makeIM(geo, material, n) {
+  const m = new THREE.InstancedMesh(geo, material, n);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  m.castShadow = true;
+  scene.add(m);
+  return m;
+}
+const cargo = {
+  genmai: makeIM(pileGeo(), matCargo.genmai, CARGO_N),
+  hakumai: makeIM(pileGeo(), matCargo.hakumai, CARGO_N),
+  wet: makeIM(pileGeo(), matCargo.wet, CARGO_N),
+  steamed: makeIM(pileGeo(), matCargo.steamed, CARGO_N),
+  koji: makeIM(pileGeo(), matCargo.koji, CARGO_N),
+  kojiFuzz: makeIM(new THREE.SphereGeometry(0.22, 8, 6), matCargo.kojiFuzz, CARGO_N),
+  shubo: makeIM(new THREE.CylinderGeometry(0.16, 0.18, 0.34, 12), matCargo.shuboShell, CARGO_N),
+  shuboLiq: makeIM(new THREE.CylinderGeometry(0.13, 0.13, 0.14, 10), matCargo.shuboLiq, CARGO_N),
+  moromi: makeIM(new THREE.CylinderGeometry(0.24, 0.26, 0.22, 14), matCargo.tub, CARGO_N),
+  moromiLiq: makeIM(new THREE.CylinderGeometry(0.20, 0.20, 0.1, 12), matCargo.moromiLiq, CARGO_N),
+  bubble: makeIM(new THREE.SphereGeometry(0.035, 6, 5), new THREE.MeshStandardMaterial({ color: 0xf7efc4, transparent: true, opacity: 0.7 }), CARGO_N),
+  sake: makeIM(new THREE.CylinderGeometry(0.13, 0.15, 0.36, 12), matCargo.glass, CARGO_N),
+  sakeLiq: makeIM(new THREE.CylinderGeometry(0.10, 0.11, 0.22, 10), matCargo.sakeLiq, CARGO_N),
+  kasu: makeIM(new THREE.BoxGeometry(0.32, 0.045, 0.22), matCargo.kasu, CARGO_N),
+  steam: makeIM(new THREE.SphereGeometry(0.11, 6, 5), matCargo.steam, CARGO_N)
+};
+const cargoItems = Array.from({ length: CARGO_N }, (_, i) => ({
+  t: i / CARGO_N,
+  lane: i % 4,
+  z: (Math.random() - 0.5) * 1.15,
+  spin: Math.random() * Math.PI,
+  phase: Math.random() * Math.PI * 2
+}));
+const CARGO_KEYS = Object.keys(cargo);
+function hideCargo(i) {
+  riceDummy.position.set(0, -20, 0);
+  riceDummy.scale.set(0, 0, 0);
+  riceDummy.rotation.set(0, 0, 0);
+  riceDummy.updateMatrix();
+  CARGO_KEYS.forEach((k) => cargo[k].setMatrixAt(i, riceDummy.matrix));
+}
+function putCargo(mesh, i, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) {
+  riceDummy.position.set(x, y, z);
+  riceDummy.rotation.set(rx, ry, rz);
+  riceDummy.scale.set(sx, sy, sz);
+  riceDummy.updateMatrix();
+  mesh.setMatrixAt(i, riceDummy.matrix);
+}
+function stageAt(x, dist) {
+  if (dist >= MAIN_BELT_LEN + FAN_LEN) {
+    if (x > BRANCH_X0 + BRANCH_PITCH * 2.55) return "bottle";
+    return "sake";
+  }
+  const rel = x - ORIGIN;
+  if (rel < PITCH * 0.45) return "genmai";
+  if (rel < PITCH * 1.45) return "hakumai";
+  if (rel < PITCH * 2.45) return "wet";
+  if (rel < PITCH * 3.45) return "steamed";
+  if (rel < PITCH * 4.45) return "koji";
+  if (rel < PITCH * 5.45) return "shubo";
+  if (rel < PITCH * 6.45) return "moromi";
+  return "sake";
+}
+
+const skinMat = new THREE.MeshStandardMaterial({ color: 0xe2b896, roughness: 0.7 });
+const clothMat = new THREE.MeshStandardMaterial({ color: 0xf3f1ea, roughness: 0.82 });
+const capMat = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.7 });
+const shoeMat = new THREE.MeshStandardMaterial({ color: 0x3a332c, roughness: 0.85 });
+const woodKai = new THREE.MeshStandardMaterial({ color: 0x8a5a2c, roughness: 0.7 });
+const workers = [];
+
+function limb(mat, w, h, d) {
+  const m = box(w, h, d, mat, 0, -h / 2, 0);
+  return m;
+}
+function makeKurabito(anim, phase = 0) {
+  const g = new THREE.Group();
+  g.add(box(0.28, 0.46, 0.2, clothMat, 0, 1.18, 0));
+  g.add(box(0.26, 0.08, 0.22, clothMat, 0, 1.42, 0));
+  const head = sphere(0.12, skinMat, 0, 1.56, 0);
+  g.add(head);
+  g.add(cyl(0.125, 0.12, 0.08, capMat, 0, 1.70, 0, 12));
+  g.add(cyl(0.17, 0.17, 0.025, capMat, 0, 1.66, 0, 12));
+  const lArm = new THREE.Group(); lArm.position.set(-0.20, 1.34, 0);
+  lArm.add(limb(clothMat, 0.08, 0.36, 0.08));
+  lArm.add(sphere(0.045, skinMat, 0, -0.38, 0));
+  const rArm = new THREE.Group(); rArm.position.set(0.20, 1.34, 0);
+  rArm.add(limb(clothMat, 0.08, 0.36, 0.08));
+  rArm.add(sphere(0.045, skinMat, 0, -0.38, 0));
+  const lLeg = new THREE.Group(); lLeg.position.set(-0.08, 0.92, 0);
+  lLeg.add(limb(clothMat, 0.1, 0.46, 0.1));
+  lLeg.add(box(0.11, 0.06, 0.16, shoeMat, 0, -0.48, 0.02));
+  const rLeg = new THREE.Group(); rLeg.position.set(0.08, 0.92, 0);
+  rLeg.add(limb(clothMat, 0.1, 0.46, 0.1));
+  rLeg.add(box(0.11, 0.06, 0.16, shoeMat, 0, -0.48, 0.02));
+  g.add(lArm, rArm, lLeg, rLeg);
+  if (anim === "stir") {
+    const kai = new THREE.Group();
+    kai.add(cyl(0.018, 0.018, 0.95, woodKai, 0, -0.48, 0, 8));
+    kai.add(box(0.2, 0.02, 0.1, woodKai, 0, -0.95, 0));
+    kai.position.set(0, -0.38, 0);
+    rArm.add(kai);
+    g.userData.kai = kai;
+  }
+  if (anim === "pour") {
+    const sack = box(0.22, 0.28, 0.16, mat.sack, 0, -0.55, 0.05);
+    rArm.add(sack);
+    lArm.add(box(0.18, 0.08, 0.12, mat.sack, 0, -0.42, 0.04));
+    g.userData.sack = sack;
+  }
+  if (anim === "carry") {
+    const tray = box(0.42, 0.05, 0.28, mat.darkWood, 0, -0.42, 0.12);
+    const rice = new THREE.Mesh(pileGeo(), matCargo.steamed);
+    rice.position.set(0, -0.32, 0.12);
+    rice.scale.set(0.85, 0.85, 0.85);
+    const st = sphere(0.1, matCargo.steam.clone(), 0, -0.16, 0.12);
+    st.userData.phase = phase;
+    st.userData.anchored = true;
+    steamPuffs.push(st);
+    rArm.add(tray);
+    rArm.add(rice);
+    rArm.add(st);
+    lArm.rotation.x = -0.85;
+  }
+  if (anim === "load") {
+    const bag = box(0.2, 0.26, 0.14, new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.85 }), 0, -0.52, 0.06);
+    rArm.add(bag);
+    lArm.add(bag.clone());
+    g.userData.bag = bag;
+  }
+  if (anim === "bottle") {
+    const btl = cyl(0.05, 0.07, 0.22, mat.bottle, 0, -0.52, 0.04);
+    rArm.add(btl);
+    g.userData.heldBottle = btl;
+  }
+  g.userData.anim = anim;
+  g.userData.phase = phase;
+  g.userData.lArm = lArm;
+  g.userData.rArm = rArm;
+  g.userData.lLeg = lLeg;
+  g.userData.rLeg = rLeg;
+  g.userData.head = head;
+  workers.push(g);
+  scene.add(g);
+  return g;
+}
+function placeWorkers() {
+  const pour = makeKurabito("pour", 0.2);
+  pour.position.set(ORIGIN - 0.55, 0, 1.85);
+  pour.rotation.y = -0.4;
+  const wash = makeKurabito("wash", 1.1);
+  wash.position.set(ORIGIN + PITCH + 0.15, 0, 1.82);
+  wash.rotation.y = Math.PI * 0.08;
+  const carry = makeKurabito("carry", 0.4);
+  carry.position.set(ORIGIN + PITCH * 2, 0, 2.05);
+  carry.userData.x0 = ORIGIN + PITCH * 2 - 1.3;
+  carry.userData.x1 = ORIGIN + PITCH * 2 + 1.4;
+  carry.userData.z0 = 2.15;
+  carry.userData.z1 = 1.55;
+  const turn = makeKurabito("turn", 2.0);
+  turn.position.set(ORIGIN + PITCH * 3 + 0.2, 0, 1.55);
+  turn.rotation.y = 0.15;
+  const stir1 = makeKurabito("stir", 0.6);
+  stir1.position.set(ORIGIN + PITCH * 4 + 0.95, 0, 1.55);
+  stir1.rotation.y = -0.55;
+  const stir2 = makeKurabito("stir", 2.4);
+  stir2.position.set(ORIGIN + PITCH * 5 + 1.15, 0, 1.7);
+  stir2.rotation.y = -0.4;
+  const load = makeKurabito("load", 1.7);
+  load.position.set(ORIGIN + PITCH * 6 - 0.8, 0, 1.9);
+  load.userData.x0 = ORIGIN + PITCH * 6 - 1.4;
+  load.userData.x1 = ORIGIN + PITCH * 6 + 0.3;
+  load.userData.z0 = 2.05;
+  load.userData.z1 = 1.35;
+  const watch = makeKurabito("watch", 0.9);
+  watch.position.set(branchX(0) + 0.9, 0, LANE_Z[0] + 1.45);
+  watch.rotation.y = Math.PI + 0.3;
+  const bottle = makeKurabito("bottle", 0.3);
+  bottle.position.set(branchX(3) + 1.6, 0, LANE_Z[0] + 1.35);
+  bottle.rotation.y = Math.PI;
+  const bottle2 = makeKurabito("bottle", 1.8);
+  bottle2.position.set(branchX(3) + 1.6, 0, LANE_Z[3] - 1.35);
+  bottle2.rotation.y = 0;
+}
+
+function animateWorkers(t) {
+  workers.forEach((w) => {
+    const u = w.userData;
+    const s = t * 1.5 + u.phase;
+    const la = u.lArm, ra = u.rArm, ll = u.lLeg, rl = u.rLeg;
+    if (u.anim === "pour") {
+      ra.rotation.x = -0.85 + Math.sin(s) * 0.55;
+      la.rotation.x = -0.7 + Math.sin(s) * 0.4;
+      ra.rotation.z = 0.15;
+      w.rotation.x = 0.1 + Math.sin(s) * 0.07;
+      if (u.sack) u.sack.rotation.x = 0.2 + Math.max(0, Math.sin(s)) * 0.9;
+    } else if (u.anim === "wash") {
+      ra.rotation.x = -1.05;
+      la.rotation.x = -1.0;
+      ra.rotation.y = Math.sin(s) * 0.55;
+      la.rotation.y = -Math.sin(s) * 0.5;
+      ra.rotation.z = 0.35 + Math.cos(s) * 0.25;
+      la.rotation.z = -0.35 - Math.cos(s) * 0.25;
+      w.position.y = Math.sin(s * 2) * 0.015;
+    } else if (u.anim === "carry" || u.anim === "load") {
+      const k = (Math.sin(s * 0.35) + 1) / 2;
+      w.position.x = u.x0 + (u.x1 - u.x0) * k;
+      w.position.z = u.z0 + (u.z1 - u.z0) * k;
+      const going = Math.cos(s * 0.35) >= 0;
+      w.rotation.y = going ? 0 : Math.PI;
+      ll.rotation.x = Math.sin(s * 3.2) * 0.5;
+      rl.rotation.x = -Math.sin(s * 3.2) * 0.5;
+      ra.rotation.x = -0.85;
+      la.rotation.x = -0.85;
+      w.position.y = Math.abs(Math.sin(s * 3.2)) * 0.03;
+    } else if (u.anim === "turn") {
+      w.rotation.x = 0.22;
+      ra.rotation.x = -0.95 + Math.sin(s) * 0.45;
+      la.rotation.x = -0.85 - Math.sin(s) * 0.4;
+      ra.rotation.z = 0.2;
+      la.rotation.z = -0.2;
+      ra.rotation.y = Math.sin(s * 0.8) * 0.35;
+    } else if (u.anim === "stir") {
+      w.rotation.x = 0.12;
+      ra.rotation.x = -0.55;
+      ra.rotation.y = Math.sin(s * 0.8) * 0.7;
+      ra.rotation.z = 0.4 + Math.cos(s * 0.8) * 0.25;
+      la.rotation.x = -0.3;
+      la.rotation.z = -0.15;
+    } else if (u.anim === "watch") {
+      if (u.head) u.head.rotation.y = Math.sin(s * 0.4) * 0.45;
+      ra.rotation.x = 0.15;
+      la.rotation.x = 0.15;
+      ra.rotation.z = 0.12;
+      la.rotation.z = -0.12;
+      w.position.y = Math.sin(s * 0.8) * 0.01;
+    } else if (u.anim === "bottle") {
+      ra.rotation.x = -0.4 + Math.sin(s) * 0.7;
+      la.rotation.x = -0.6 + Math.sin(s + 0.4) * 0.25;
+      w.position.y = Math.max(0, Math.sin(s)) * 0.04;
+    }
+  });
+}
+
+function poseCargoItem(item, i, x, y, z, t) {
+  hideCargo(i);
+  const dist = (item.t * PATH_LEN + beltPos) % PATH_LEN;
+  const st = stageAt(x, dist);
+  const splitX = ORIGIN + PITCH * 6.45;
+  if (st === "bottle") {
+    return st;
+  }
+  const bob = Math.sin(t * 3 + item.phase) * 0.012;
+  if (st === "genmai" || st === "hakumai" || st === "wet" || st === "steamed" || st === "koji") {
+    putCargo(cargo[st], i, x, y + bob, z, 1, 1, 1, 0, item.spin + t * 0.2, 0);
+    if (st === "koji") putCargo(cargo.kojiFuzz, i, x, y + 0.04 + bob, z, 1.15, 1.2, 1.15);
+    if (st === "steamed") {
+      const fade = 0.12 + (Math.sin(t * 2 + item.phase) * 0.5 + 0.5) * 0.18;
+      putCargo(cargo.steam, i, x, y + 0.28 + (t * 0.25 + item.phase) % 0.35, z, 1.1, 1.1, 1.1);
+    }
+  } else if (st === "shubo") {
+    putCargo(cargo.shubo, i, x, 1.05, z, 1, 1, 1, 0, item.spin * 0.2, 0);
+    putCargo(cargo.shuboLiq, i, x, 1.02, z);
+  } else if (st === "moromi") {
+    putCargo(cargo.moromi, i, x, 0.98, z);
+    putCargo(cargo.moromiLiq, i, x, 1.02, z);
+    putCargo(cargo.bubble, i, x + Math.cos(t * 2 + item.phase) * 0.08, 1.12 + (t * 0.7 + item.phase) % 0.18, z);
+  } else if (st === "sake") {
+    putCargo(cargo.sake, i, x, 1.06, z);
+    putCargo(cargo.sakeLiq, i, x, 1.0, z);
+    if (x > splitX || dist >= MAIN_BELT_LEN) {
+      const dlt = dist >= MAIN_BELT_LEN ? 2.2 : Math.max(0, x - splitX);
+      const kz = MAIN_Z + item.z + Math.min(2.3, dlt * 0.9);
+      const kx = Math.min(x, splitX + 0.8 + (item.lane * 0.15));
+      const ky = 0.86 + Math.min(0.15, dlt * 0.04);
+      putCargo(cargo.kasu, i, kx, ky, kz, 1, 1, 1, 0.1, item.spin, 0.15);
+    }
+  }
+  return st;
+}
+
 
 function addLabel(group, text) {
   const el = document.createElement("div");
@@ -652,6 +942,12 @@ function buildPress(g) {
   g.add(plate);
   g.add(box(1.6, 0.7, 1.1, new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.85 }), 0, 0.95, -0.2));
   g.add(cyl(0.25, 0.25, 0.5, mat.tank, 0.9, 0.55, 0.9));
+  for (let k = 0; k < 6; k++) {
+    const sheet = box(0.38, 0.05, 0.26, new THREE.MeshStandardMaterial({ color: 0xddd0b0, roughness: 0.9 }), 1.15 + (k % 2) * 0.15, 0.45 + Math.floor(k / 2) * 0.07, 1.15 + (k % 3) * 0.08);
+    sheet.rotation.y = (k - 2) * 0.2;
+    sheet.rotation.z = 0.08 * (k % 2);
+    g.add(sheet);
+  }
 }
 
 function buildFilter(g) {
@@ -915,6 +1211,7 @@ function buildBranchYard() {
 
 
 buildBranchYard();
+placeWorkers();
 
 
 const camFrom = new THREE.Vector3();
@@ -1295,54 +1592,43 @@ function animate() {
     s.position.x = BRANCH_X0 + u * span;
   });
 
-  const bottleCutoff = BRANCH_X0 + BRANCH_PITCH * 2.55;
   const hide = new THREE.Matrix4().makeScale(0, 0, 0);
   const bottleCounts = [0, 0, 0, 0];
-  riceData.forEach((r, i) => {
-    const dist = (r.t * PATH_LEN + beltPos) % PATH_LEN;
+  cargoItems.forEach((item, i) => {
+    const dist = (item.t * PATH_LEN + beltPos) % PATH_LEN;
     let x, y, z;
     if (dist < MAIN_BELT_LEN) {
       const k = dist / MAIN_BELT_LEN;
       x = MAIN_BELT_START + k * MAIN_BELT_LEN;
-      y = r.y;
-      z = MAIN_Z + r.z;
+      y = 0.98;
+      z = MAIN_Z + item.z;
     } else if (dist < MAIN_BELT_LEN + FAN_LEN) {
       const k = (dist - MAIN_BELT_LEN) / FAN_LEN;
       x = ROKA_X + k * (BRANCH_X0 - ROKA_X);
-      y = r.y;
-      z = MAIN_Z * (1 - k) + LANE_Z[r.lane] * k + r.z * (1 - k * 0.7);
+      y = 0.98;
+      z = MAIN_Z * (1 - k) + LANE_Z[item.lane] * k + item.z * (1 - k * 0.7);
     } else {
       const k = dist - MAIN_BELT_LEN - FAN_LEN;
       x = BRANCH_X0 + k;
-      y = r.y;
-      z = LANE_Z[r.lane] + r.z * 0.3;
+      y = 0.98;
+      z = LANE_Z[item.lane] + item.z * 0.3;
     }
-    const asBottle = dist > MAIN_BELT_LEN + FAN_LEN && x > bottleCutoff;
-    if (asBottle) {
-      riceDummy.position.set(0, -10, 0);
-      riceDummy.scale.set(0, 0, 0);
-      riceDummy.updateMatrix();
-      riceMesh.setMatrixAt(i, riceDummy.matrix);
-      const bi = bottleCounts[r.lane]++;
+    const st = poseCargoItem(item, i, x, y, z, t);
+    if (st === "bottle") {
+      const bi = bottleCounts[item.lane]++;
       if (bi < 28) {
         riceDummy.scale.set(1, 1, 1);
         riceDummy.position.set(x, 1.05 + Math.sin(t * 2 + i) * 0.03, z);
         riceDummy.rotation.set(0, 0, 0);
         riceDummy.updateMatrix();
-        bottleMeshes[r.lane].setMatrixAt(bi, riceDummy.matrix);
+        bottleMeshes[item.lane].setMatrixAt(bi, riceDummy.matrix);
         riceDummy.position.y += 0.34;
         riceDummy.updateMatrix();
-        capMeshes[r.lane].setMatrixAt(bi, riceDummy.matrix);
+        capMeshes[item.lane].setMatrixAt(bi, riceDummy.matrix);
       }
-    } else {
-      riceDummy.scale.set(1, 1, 1);
-      riceDummy.position.set(x, y + Math.sin(t * 3 + i) * 0.01, z);
-      riceDummy.rotation.set(t + r.spin, t * 0.7, 0);
-      riceDummy.updateMatrix();
-      riceMesh.setMatrixAt(i, riceDummy.matrix);
     }
   });
-  riceMesh.instanceMatrix.needsUpdate = true;
+  CARGO_KEYS.forEach((k) => { cargo[k].instanceMatrix.needsUpdate = true; });
   bottleMeshes.forEach((m, li) => {
     for (let k = bottleCounts[li]; k < 28; k++) m.setMatrixAt(k, hide);
     m.instanceMatrix.needsUpdate = true;
@@ -1350,10 +1636,13 @@ function animate() {
     for (let k = bottleCounts[li]; k < 28; k++) caps.setMatrixAt(k, hide);
     caps.instanceMatrix.needsUpdate = true;
   });
+  animateWorkers(t);
 
-  steamPuffs.forEach((p, i) => {
+  steamPuffs.forEach((p) => {
     const ph = t * 0.7 + p.userData.phase;
-    p.position.y = (p.userData.baseY || 2.3) + (ph % 1.6);
+    if (!p.userData.anchored) {
+      p.position.y = (p.userData.baseY || 2.3) + (ph % 1.6);
+    }
     const fade = 1 - ((ph % 1.6) / 1.6);
     p.material.opacity = 0.08 + fade * 0.18;
     const s = 0.6 + (ph % 1.6) * 0.5;
@@ -1405,6 +1694,27 @@ window.__selectStation = (i) => selectStation(i, true);
 window.__selectLane = (i) => selectLane(i, true);
 window.__stations = STATIONS.map((s) => s.id);
 window.__lanes = LANES.map((s) => s.id);
+window.__workerCount = () => workers.length;
+window.__cargoSample = () => {
+  const counts = {};
+  cargoItems.forEach((item) => {
+    const dist = (item.t * PATH_LEN + beltPos) % PATH_LEN;
+    let x;
+    if (dist < MAIN_BELT_LEN) x = MAIN_BELT_START + (dist / MAIN_BELT_LEN) * MAIN_BELT_LEN;
+    else if (dist < MAIN_BELT_LEN + FAN_LEN) x = ROKA_X + ((dist - MAIN_BELT_LEN) / FAN_LEN) * (BRANCH_X0 - ROKA_X);
+    else x = BRANCH_X0 + (dist - MAIN_BELT_LEN - FAN_LEN);
+    const st = stageAt(x, dist);
+    counts[st] = (counts[st] || 0) + 1;
+  });
+  return counts;
+};
+window.__viewCargo = () => {
+  selected = -1;
+  selectedLane = -1;
+  camera.position.set(ORIGIN + PITCH * 3.7, 8.6, 19.5);
+  controls.target.set(ORIGIN + PITCH * 3.7, 1.2, 0);
+  controls.update();
+};
 
   </script>
 </body>
